@@ -59,8 +59,14 @@ export async function fetchNotes(clientId: string) {
 }
 
 export async function addNote(clientId: string, fieldId: string, text: string) {
-  const { data: { user } } = await supabase.auth.getUser();
-  const { error } = await supabase.from('notes')
-    .insert({ client_id: clientId, field_id: fieldId, text, created_by: user!.id });
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('Not authenticated');
+  }
+  const { error } = await supabase
+    .from('notes')
+    .insert({ client_id: clientId, field_id: fieldId, text, created_by: user.id });
   if (error) throw error;
 }

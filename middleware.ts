@@ -1,14 +1,39 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
-export function middleware(req: NextRequest) {
-  const url = req.nextUrl.clone();
+const PUBLIC_FILE = /\.(.*)$/;
 
-  // deja pasar login y static files
-  if (url.pathname.startsWith('/login') || url.pathname.startsWith('/_next')) {
+export function middleware(req: NextRequest) {
+  const { nextUrl, cookies, headers } = req;
+  const url = nextUrl.clone();
+  const { pathname } = url;
+
+  // allow public assets and auth pages to bypass the check
+  if (
+    pathname === '/' ||
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/signup') ||
+    pathname.startsWith('/_next') ||
+    PUBLIC_FILE.test(pathname)
+  ) {
     return NextResponse.next();
   }
 
-  // aquí no hagas chequeo manual de cookies, deja que el cliente maneje la sesión
+  // read Supabase session cookie or auth header
+  const supabaseToken =
+    cookies.get('sb:token')?.value ||
+    cookies.get('sb-access-token')?.value ||
+    headers.get('authorization')?.replace('Bearer ', '');
+
+  // redirect unauthenticated users trying to access protected routes
+  if (!supabaseToken) {
+    url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+
   return NextResponse.next();
 }
+
+export const config = {
+  matcher: ['/((?!_next).*)'],
+};
