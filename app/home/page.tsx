@@ -9,7 +9,14 @@ import ModalText from '@/components/ModalText';
 import { subscribeClientLive } from '@/lib/realtime';
 import { computeRecommendations } from '@/lib/recommendations';
 
-type FieldType = 'text' | 'number' | 'select' | 'multiselect' | 'currency' | 'note';
+type FieldType =
+  | 'text'
+  | 'number'
+  | 'select'
+  | 'multiselect'
+  | 'currency'
+  | 'note'
+  | 'date';
 
 type Field = {
   id: string;
@@ -74,6 +81,16 @@ function FieldCard({
           placeholder={field.type === 'currency' ? '$' : '0'}
           value={value === '' ? '' : typeof value === 'number' ? value : value || ''}
           onChange={(e) => onChange(field.id, e.target.value === '' ? '' : Number(e.target.value))}
+        />
+      );
+
+    if (field.type === 'date')
+      return (
+        <input
+          type="date"
+          className="w-full rounded-lg border border-slate-200 bg-white/70 p-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
+          value={typeof value === 'string' ? value : value ?? ''}
+          onChange={(e) => onChange(field.id, e.target.value)}
         />
       );
 
@@ -455,6 +472,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                   <option value="select">select</option>
                   <option value="multiselect">multiselect</option>
                   <option value="currency">currency</option>
+                  <option value="date">date</option>
                   <option value="note">note</option>
                 </select>
               </div>

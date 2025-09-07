@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import Sidebar from '@/components/Sidebar';
 import ModalCreateClient from '@/components/ModalCreateClient';
 import { fetchClients } from '@/lib/clients';
-import { createClient, logout } from '@/lib/db';
+import { createClient, logout, ensureDefaultTemplates, getMyProfile } from '@/lib/db';
 import type { ClientRow } from '@/lib/clients';
 
 export default function DashboardPage() {
@@ -26,6 +26,8 @@ export default function DashboardPage() {
       }
       setEmail(data.user.email ?? null);
       try {
+        const { org_id } = await getMyProfile();
+        await ensureDefaultTemplates(org_id);
         const rows = await fetchClients();
         setClients(rows);
       } catch (e: any) {
