@@ -1,7 +1,15 @@
 import { supabase } from './supabaseClient';
+import type { User } from '@supabase/supabase-js';
 
-export async function getMyProfile() {
-  const { data: { user } } = await supabase.auth.getUser();
+type Profile = { user: User; org_id: string; role: string };
+
+let cachedProfile: Profile | null = null;
+
+export async function getMyProfile(): Promise<Profile> {
+  if (cachedProfile) return cachedProfile;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
   if (!user) throw new Error('No logueado');
   const { data, error } = await supabase
     .from('profiles')
@@ -9,7 +17,12 @@ export async function getMyProfile() {
     .eq('user_id', user.id)
     .single();
   if (error) throw error;
-  return { user, org_id: data.org_id, role: data.role };
+  cachedProfile = { user, org_id: data.org_id, role: data.role };
+  return cachedProfile;
+}
+
+export function clearProfileCache() {
+  cachedProfile = null;
 }
 
 export async function fetchTemplates() {
@@ -25,14 +38,16 @@ export async function fetchTemplates() {
 
 export async function createTemplate(name: string, fields: any[]) {
   const { org_id, user } = await getMyProfile();
-  const { error } = await supabase.from('templates')
+  const { error } = await supabase
+    .from('templates')
     .insert({ org_id, name, fields, created_by: user.id });
   if (error) throw error;
 }
 
-export async function createClient(name: string, tag='Lead') {
+export async function createClient(name: string, tag = 'Lead') {
   const { org_id, user } = await getMyProfile();
-  const { data, error } = await supabase.from('clients')
+  const { data, error } = await supabase
+    .from('clients')
     .insert({ org_id, name, tag, created_by: user.id })
     .select('id')
     .single();
