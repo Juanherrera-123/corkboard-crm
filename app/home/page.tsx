@@ -8,6 +8,7 @@ import { fetchTemplates, addNote, fetchNotes, deleteClient } from '@/lib/db';
 import ModalText from '@/components/ModalText';
 import { subscribeClientLive } from '@/lib/realtime';
 import { computeRecommendations } from '@/lib/recommendations';
+import { uid } from '@/lib/uid';
 
 type FieldType =
   | 'text'
@@ -501,7 +502,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                     alert('Label y tipo requeridos');
                     return;
                   }
-                  const id = crypto.randomUUID();
+                  const id = uid();
                   const maxY = tpl?.fields.reduce((m, f) => Math.max(m, f.y + f.h), 0) || 0;
                   const field: Field = {
                     id,
