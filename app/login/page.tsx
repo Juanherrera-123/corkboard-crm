@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 
 type Mode = 'login' | 'signup';
@@ -16,39 +15,20 @@ export default function LoginPage() {
   const [pass2, setPass2] = useState('');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
 
-  const syncSessionCookies = (session: Session | null) => {
-    const expires = session?.expires_at
-      ? new Date(session.expires_at * 1000).toUTCString()
-      : '0';
-    document.cookie = `sb-access-token=${session?.access_token ?? ''}; path=/; expires=${expires}; SameSite=Lax`;
-    document.cookie = `sb-refresh-token=${session?.refresh_token ?? ''}; path=/; expires=${expires}; SameSite=Lax`;
-  };
-
-  // On first load, if already authenticated, go to /home (once)
   useEffect(() => {
     let cancelled = false;
-
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!cancelled && data.session) {
-        // Ensure auth cookies exist before redirecting so middleware lets the
-        // request through.  Without syncing the cookies, a stale local session
-        // could trigger an infinite redirect between /login and /home.
-        syncSessionCookies(data.session);
         router.replace('/home');
+      } else {
+        setReady(true);
       }
     })();
-
-    // Also listen for auth state changes while this page is open
-    const { data: sub } = supabase.auth.onAuthStateChange((_ev, session) => {
-      syncSessionCookies(session);
-      if (session) router.replace('/home'); // <-- never redirect back to /login
-    });
-
     return () => {
       cancelled = true;
-      sub.subscription.unsubscribe();
     };
   }, [router]);
 
@@ -57,35 +37,19 @@ export default function LoginPage() {
     setLoading(true);
     try {
       if (mode === 'signup') {
-        if (pass.length < 6) {
-          setMsg('La contraseña debe tener al menos 6 caracteres.');
-          return;
-        }
-        if (pass !== pass2) {
-          setMsg('Las contraseñas no coinciden.');
-          return;
-        }
-        const { error } = await supabase.auth.signUp({
-          email,
-          password: pass,
-        });
+        if (pass.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.');
+        if (pass !== pass2) throw new Error('Las contraseñas no coinciden.');
+        const { error } = await supabase.auth.signUp({ email, password: pass });
         if (error) throw error;
-        // Si confirmación de email está desactivada, ya hay sesión.
-        // Si estuviera activada, el onAuthStateChange manejará el redirect
-        // cuando el usuario confirme y vuelva.
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password: pass,
-        });
+        const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
         if (error) throw error;
       }
-
-      // Intento de sesión inmediata (evita esperar al listener)
       const { data } = await supabase.auth.getSession();
       if (data.session) {
-        syncSessionCookies(data.session);
         router.replace('/home');
+      } else {
+        setMsg('Revisa tu correo si la verificación está habilitada.');
       }
     } catch (e: any) {
       setMsg(`❌ ${e?.message ?? 'Error al autenticar'}`);
@@ -93,6 +57,14 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-slate-50">
+        <div className="text-slate-500 text-sm">Cargando…</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
