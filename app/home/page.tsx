@@ -4,7 +4,14 @@ export const dynamic = 'force-dynamic';
 import React, { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
-import { fetchTemplates, addNote, fetchNotes, deleteClient } from '@/lib/db';
+import {
+  fetchTemplates,
+  addNote,
+  fetchNotes,
+  deleteClient,
+  saveClientRecord,
+  fetchLatestRecord,
+} from '@/lib/db';
 import ModalText from '@/components/ModalText';
 import { subscribeClientLive } from '@/lib/realtime';
 import { computeRecommendations } from '@/lib/recommendations';
@@ -204,13 +211,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     };
   }, [router]);
 
-  useEffect(() => {
-    const handler = () => {
-      supabase.auth.signOut().catch(() => {});
-    };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, []);
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [tpl, setTpl] = useState<Template | null>(null);
@@ -219,6 +219,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const [answers, setAnswers] = useState<Answers>({});
   const [notes, setNotesState] = useState<Record<string, Note[]>>({});
+  const lastSavedRef = useRef('');
+  const [saving, setSaving] = useState(false);
 
   const [noteField, setNoteField] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -244,6 +246,25 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     })();
   }, []);
 
+  useEffect(() => {
+    if (!clientId) return;
+    (async () => {
+      try {
+        const rec = await fetchLatestRecord(clientId);
+        if (rec?.answers) {
+          setAnswers(rec.answers);
+          lastSavedRef.current = JSON.stringify(rec.answers);
+        }
+        if (rec?.template_id) {
+          const t = templates.find((t) => t.id === rec.template_id);
+          if (t) setTpl(t as any);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+  }, [clientId, templates]);
+
   const labelMap = useMemo(() => {
     const map: Record<string, string> = {};
     tpl?.fields.forEach((f) => {
@@ -260,6 +281,42 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       return { ...prev, [id]: val };
     });
   }, []);
+
+  const save = useCallback(
+    async (force = false) => {
+      if (!clientId || !tpl) return;
+      const current = JSON.stringify(answers);
+      if (!force && current === lastSavedRef.current) return;
+      setSaving(true);
+      try {
+        const recs = computeRecommendations(answers, labelMap);
+        const score = recs.reduce((s, r) => s + r.score, 0);
+        await saveClientRecord(clientId, tpl.id, answers, score, recs);
+        lastSavedRef.current = current;
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setSaving(false);
+      }
+    },
+    [clientId, tpl, answers, labelMap]
+  );
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      save();
+    }, 5000);
+    return () => clearInterval(id);
+  }, [save]);
+
+  useEffect(() => {
+    const handler = () => {
+      save(true);
+      supabase.auth.signOut().catch(() => {});
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [save]);
 
   const addNoteLocalAndRemote = async (fieldId: string, text: string) => {
     if (!clientId) {
@@ -294,7 +351,17 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
     const u = subscribeClientLive(
       clientId,
-      () => {},
+      async () => {
+        try {
+          const rec = await fetchLatestRecord(clientId);
+          if (rec?.answers) {
+            setAnswers(rec.answers);
+            lastSavedRef.current = JSON.stringify(rec.answers);
+          }
+        } catch (err) {
+          console.error(err);
+        }
+      },
       async () => {
         const list = await fetchNotes(clientId);
         const byField: Record<string, Note[]> = {};
@@ -339,6 +406,13 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
             onChange={(e) => setZoom(Number(e.target.value))}
           />
           <button
+            className="px-3 py-1.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60"
+            onClick={() => save(true)}
+            disabled={saving}
+          >
+            {saving ? 'Guardando…' : 'Guardar cambios'}
+          </button>
+          <button
             className="px-3 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50"
             onClick={async () => {
               if (!clientId) return;
@@ -356,7 +430,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           </button>
           <button
             className="px-3 py-1.5 rounded-xl border bg-white hover:bg-slate-50"
-            onClick={() => router.push('/dashboard')}
+            onClick={async () => {
+              await save(true);
+              router.push('/dashboard');
+            }}
           >
             Salir
           </button>

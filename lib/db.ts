@@ -192,6 +192,17 @@ export async function saveClientRecord(clientId: string, templateId: string, ans
   return data.id as string;
 }
 
+export async function fetchLatestRecord(clientId: string) {
+  const { data, error } = await supabase
+    .from('client_records')
+    .select('answers, template_id, score, matches, created_at')
+    .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return data && data[0] ? data[0] : null;
+}
+
 export async function fetchNotes(clientId: string) {
   const { data, error } = await supabase.from('notes')
     .select('id, field_id, text, created_at, created_by')
