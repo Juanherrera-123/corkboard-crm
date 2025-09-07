@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import {
   fetchTemplates,
@@ -197,6 +197,8 @@ export default function HomePage() {
   const [zoom, setZoom] = useState(1);
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
+  const unsub = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     (async () => {
       const { data: u } = await supabase.auth.getUser();
@@ -236,14 +238,22 @@ export default function HomePage() {
   };
 
   const createClientBtn = async () => {
+    unsub.current?.();
+    unsub.current = null;
     const name = clientName || prompt('Nombre del cliente') || 'Sin nombre';
     const id = await createClient(name, clientTag);
     setClientId(id);
-    const unsub = subscribeClientLive(
-      id,
+    alert(`Cliente creado (${id})`);
+  };
+
+  useEffect(() => {
+    if (!clientId) return;
+
+    const u = subscribeClientLive(
+      clientId,
       () => {},
       async () => {
-        const list = await fetchNotes(id);
+        const list = await fetchNotes(clientId);
         const byField: Record<string, Note[]> = {};
         list.forEach((n) => {
           (byField[n.field_id] ||= []).push(n as any);
@@ -251,9 +261,12 @@ export default function HomePage() {
         setNotesState(byField);
       }
     );
-    // Nota: guarda unsub si luego quieres limpiar la suscripción al desmontar
-    alert(`Cliente creado (${id})`);
-  };
+    unsub.current = u;
+    return () => {
+      u();
+      unsub.current = null;
+    };
+  }, [clientId]);
 
   const saveRecordBtn = async () => {
     if (!tpl) {
