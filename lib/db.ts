@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
 import type { User } from '@supabase/supabase-js';
-import { randomUUID } from 'crypto';
+import { uid } from './uid';
 
 type Profile = { user: User; org_id: string; role: string };
 
@@ -60,7 +60,6 @@ export async function ensureDefaultTemplates(orgId: string) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error('No logueado');
-
   const ibFields = [
     { id: randomUUID(), label: '¿Qué tan grande es su Comunidad?', type: 'text', x: 1, y: 1, w: 5, h: 2 },
     { id: randomUUID(), label: '¿Tiene un equipo de trabajo? ¿Cuántas personas?', type: 'text', x: 6, y: 1, w: 5, h: 2 },
