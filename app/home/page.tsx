@@ -9,6 +9,8 @@ import ModalText from '@/components/ModalText';
 import { subscribeClientLive } from '@/lib/realtime';
 import { computeRecommendations } from '@/lib/recommendations';
 import { uid } from '@/lib/uid';
+import { fetchClient } from '@/lib/clients';
+import type { ClientRow } from '@/lib/clients';
 
 type FieldType =
   | 'text'
@@ -216,6 +218,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [tpl, setTpl] = useState<Template | null>(null);
 
   const [clientId, setClientId] = useState<string>('');
+  const [client, setClient] = useState<ClientRow | null>(null);
 
   const [answers, setAnswers] = useState<Answers>({});
   const [notes, setNotesState] = useState<Record<string, Note[]>>({});
@@ -235,6 +238,21 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   useEffect(() => {
     if (searchParams?.client) setClientId(searchParams.client);
   }, [searchParams?.client]);
+
+  useEffect(() => {
+    if (!clientId) {
+      setClient(null);
+      return;
+    }
+    (async () => {
+      try {
+        const c = await fetchClient(clientId);
+        setClient(c);
+      } catch {
+        setClient(null);
+      }
+    })();
+  }, [clientId]);
 
   useEffect(() => {
     (async () => {
@@ -327,7 +345,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   }
   return (
     <div className="min-h-screen w-full bg-slate-100">
-      <div className="sticky top-0 z-20 flex justify-end p-2 bg-white/70 backdrop-blur border-b border-slate-200">
+      <div className="sticky top-0 z-20 flex items-center justify-between p-2 bg-white/70 backdrop-blur border-b border-slate-200">
+        <div className="px-3 py-1 rounded-lg border border-slate-200 bg-white text-slate-800 font-semibold">
+          {client?.name}
+        </div>
         <div className="flex items-center gap-2">
           <label className="text-sm text-slate-600">Zoom</label>
           <input
