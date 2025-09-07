@@ -21,9 +21,10 @@ export default function LoginPage() {
     let cancelled = false;
     (async () => {
       const { data } = await supabase.auth.getSession();
-      if (!cancelled && data.session) {
+      const hasCookie = typeof document !== 'undefined' && document.cookie.includes('sb-access-token');
+      if (!cancelled && data.session && hasCookie) {
         router.replace('/home');
-      } else {
+      } else if (!cancelled) {
         setReady(true);
       }
     })();
@@ -39,18 +40,21 @@ export default function LoginPage() {
       if (mode === 'signup') {
         if (pass.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.');
         if (pass !== pass2) throw new Error('Las contraseñas no coinciden.');
-        const { error } = await supabase.auth.signUp({ email, password: pass });
+        const { data, error } = await supabase.auth.signUp({ email, password: pass });
         if (error) throw error;
+        if (data.session) {
+          router.replace('/home');
+          return;
+        }
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password: pass });
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
         if (error) throw error;
+        if (data.session) {
+          router.replace('/home');
+          return;
+        }
       }
-      const { data } = await supabase.auth.getSession();
-      if (data.session) {
-        router.replace('/home');
-      } else {
-        setMsg('Revisa tu correo si la verificación está habilitada.');
-      }
+      setMsg('Revisa tu correo si la verificación está habilitada.');
     } catch (e: any) {
       setMsg(`❌ ${e?.message ?? 'Error al autenticar'}`);
     } finally {

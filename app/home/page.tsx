@@ -2,6 +2,7 @@
 export const dynamic = 'force-dynamic';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import {
   fetchTemplates,
@@ -166,24 +167,24 @@ function FieldCard({
 }
 
 export default function HomePage() {
+  const router = useRouter();
   // Protección de ruta: esperamos conocer la sesión antes de renderizar el dashboard
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (cancelled) return;
+    let active = true;
+    supabase.auth.getSession().then(({ data }: any) => {
+      if (!active) return;
       if (!data.session) {
-        window.location.href = '/login';
+        router.replace('/login');
       } else {
         setReady(true);
       }
-    })();
+    });
     return () => {
-      cancelled = true;
+      active = false;
     };
-  }, []);
+  }, [router]);
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [tpl, setTpl] = useState<Template | null>(null);
@@ -236,7 +237,7 @@ export default function HomePage() {
     }
     const list = await fetchNotes(clientId);
     const byField: Record<string, Note[]> = {};
-    list.forEach((n) => {
+    list.forEach((n: any) => {
       (byField[n.field_id] ||= []).push(n as any);
     });
     setNotesState(byField);
@@ -269,9 +270,9 @@ export default function HomePage() {
       async () => {
         const list = await fetchNotes(clientId);
         const byField: Record<string, Note[]> = {};
-        list.forEach((n) => {
-          (byField[n.field_id] ||= []).push(n as any);
-        });
+          list.forEach((n: any) => {
+            (byField[n.field_id] ||= []).push(n as any);
+          });
         setNotesState(byField);
       }
     );
@@ -304,7 +305,7 @@ export default function HomePage() {
     await supabase.auth.signOut();
     clearAuthCookies();
     clearProfileCache();
-    window.location.href = '/login';
+    router.replace('/login');
   };
 
   const corkBg: React.CSSProperties = {

@@ -1,8 +1,10 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 
 export default function Signup() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [pass, setPass] = useState('');
   const [pass2, setPass2] = useState('');
@@ -16,10 +18,10 @@ export default function Signup() {
     const { error: upErr } = await supabase.auth.signUp({ email, password: pass });
     if (upErr) return setMsg('❌ ' + upErr.message);
 
-    const { error: inErr } = await supabase.auth.signInWithPassword({ email, password: pass });
+    const { data, error: inErr } = await supabase.auth.signInWithPassword({ email, password: pass });
     if (inErr) return setMsg('❌ ' + inErr.message);
 
-    window.location.href = '/home';
+    if (data.session) router.replace('/home');
   }
 
   return (

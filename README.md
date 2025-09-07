@@ -47,3 +47,14 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/bui
    ```
 
 These commands are also executed in CI to catch issues early.
+
+## Supabase configuration
+
+Set the following environment variables in `.env.local` and on Vercel:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=<your-project-url>
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<your-anon-key>
+```
+
+In the Supabase Dashboard under **Authentication → URL Configuration** ensure the Site URL and Redirect URLs include your Vercel domain and `http://localhost:3000`. This allows email links and client calls to work in both development and production.
