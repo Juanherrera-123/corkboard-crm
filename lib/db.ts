@@ -149,9 +149,43 @@ export async function createClient(name: string, tag: string) {
   return data.id as string;
 }
 
+function normalizeAnswersBeforeSave(
+  answers: Record<string, any>,
+  fields: { id: string; type: string }[]
+) {
+  const byId = new Map(fields.map((f) => [f.id, f.type]));
+  const out: Record<string, any> = {};
+
+  for (const [k, v] of Object.entries(answers)) {
+    const t = byId.get(k);
+    if (t === 'number' || t === 'currency') {
+      if (typeof v === 'string') {
+        const cleaned = v.replace(',', '.').trim();
+        const num = Number(cleaned);
+        out[k] = Number.isFinite(num) ? num : null;
+      } else if (typeof v === 'number') {
+        out[k] = v;
+      } else {
+        out[k] = null;
+      }
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
+
 export async function saveClientRecord(clientId: string, templateId: string, answers: any, score: number, matches: any[]) {
+  const { data: tpl, error: tplErr } = await supabase
+    .from('templates')
+    .select('fields')
+    .eq('id', templateId)
+    .single();
+  if (tplErr) throw new Error(tplErr.message);
+  const normalized = normalizeAnswersBeforeSave(answers, tpl?.fields || []);
+
   const { data, error } = await supabase.from('client_records')
-    .insert({ client_id: clientId, template_id: templateId, answers, score, matches })
+    .insert({ client_id: clientId, template_id: templateId, answers: normalized, score, matches })
     .select('id, client_id, template_id, answers, score, matches')
     .single();
   if (error) throw new Error(error.message);
