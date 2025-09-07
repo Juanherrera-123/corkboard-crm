@@ -22,7 +22,7 @@ export default function LoginPage() {
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!cancelled && data.session) {
-        router.replace('/home');
+        router.replace('/dashboard');
       } else if (!cancelled) {
         setReady(true);
       }
@@ -42,14 +42,14 @@ export default function LoginPage() {
         const { data, error } = await supabase.auth.signUp({ email, password: pass });
         if (error) throw error;
         if (data.session) {
-          router.replace('/home');
+          router.replace('/dashboard');
           return;
         }
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
         if (error) throw error;
         if (data.session) {
-          router.replace('/home');
+          router.replace('/dashboard');
           return;
         }
       }

@@ -21,7 +21,7 @@ export default function Signup() {
     const { data, error: inErr } = await supabase.auth.signInWithPassword({ email, password: pass });
     if (inErr) return setMsg('❌ ' + inErr.message);
 
-    if (data.session) router.replace('/home');
+    if (data.session) router.replace('/dashboard');
   }
 
   return (
