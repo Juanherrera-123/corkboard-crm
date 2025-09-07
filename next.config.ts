@@ -2,12 +2,12 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   eslint: {
-    // No bloquees el build por errores de ESLint
-    ignoreDuringBuilds: true,
+    // Only ignore ESLint errors outside CI
+    ignoreDuringBuilds: !process.env.CI,
   },
   typescript: {
-    // No bloquees el build por errores de type-checking
-    ignoreBuildErrors: true,
+    // Only ignore type-checking errors outside CI
+    ignoreBuildErrors: !process.env.CI,
   },
 };
 
