@@ -1,6 +1,6 @@
 import { supabase } from './supabaseClient';
 import type { User } from '@supabase/supabase-js';
-import { randomUUID } from 'crypto';
+import { uid } from './uid';
 
 type Profile = { user: User; org_id: string; role: string };
 
@@ -68,17 +68,17 @@ export async function ensureDefaultTemplates(orgId: string) {
       org_id: orgId,
       name: 'IB',
       fields: [
-        { id: randomUUID(), label: '¿Qué tan grande es su Comunidad?', type: 'text', x: 1, y: 1, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Tiene un equipo de trabajo? ¿Cuántas personas?', type: 'text', x: 6, y: 1, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Cómo funciona su Comunidad? (Nuevos clientes)', type: 'text', x: 1, y: 3, w: 10, h: 2 },
-        { id: randomUUID(), label: '¿Qué broker utiliza actualmente?', type: 'text', x: 1, y: 5, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Qué plataforma utiliza para tradear?', type: 'text', x: 6, y: 5, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Qué tipo de instrumentos tradea?', type: 'text', x: 1, y: 7, w: 5, h: 2 },
-        { id: randomUUID(), label: 'Datos de contacto (celular y correo)', type: 'text', x: 6, y: 7, w: 5, h: 2 },
-        { id: randomUUID(), label: 'Estimación/plan de crecimiento', type: 'text', x: 1, y: 9, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Qué le interesa o está buscando?', type: 'text', x: 6, y: 9, w: 5, h: 2 },
-        { id: randomUUID(), label: 'Siguiente fecha de follow up', type: 'date', x: 1, y: 11, w: 5, h: 2 },
-        { id: randomUUID(), label: 'Notas de la conversación', type: 'text', x: 1, y: 13, w: 10, h: 3 },
+        { id: uid(), label: '¿Qué tan grande es su Comunidad?', type: 'text', x: 1, y: 1, w: 5, h: 2 },
+        { id: uid(), label: '¿Tiene un equipo de trabajo? ¿Cuántas personas?', type: 'text', x: 6, y: 1, w: 5, h: 2 },
+        { id: uid(), label: '¿Cómo funciona su Comunidad? (Nuevos clientes)', type: 'text', x: 1, y: 3, w: 10, h: 2 },
+        { id: uid(), label: '¿Qué broker utiliza actualmente?', type: 'text', x: 1, y: 5, w: 5, h: 2 },
+        { id: uid(), label: '¿Qué plataforma utiliza para tradear?', type: 'text', x: 6, y: 5, w: 5, h: 2 },
+        { id: uid(), label: '¿Qué tipo de instrumentos tradea?', type: 'text', x: 1, y: 7, w: 5, h: 2 },
+        { id: uid(), label: 'Datos de contacto (celular y correo)', type: 'text', x: 6, y: 7, w: 5, h: 2 },
+        { id: uid(), label: 'Estimación/plan de crecimiento', type: 'text', x: 1, y: 9, w: 5, h: 2 },
+        { id: uid(), label: '¿Qué le interesa o está buscando?', type: 'text', x: 6, y: 9, w: 5, h: 2 },
+        { id: uid(), label: 'Siguiente fecha de follow up', type: 'date', x: 1, y: 11, w: 5, h: 2 },
+        { id: uid(), label: 'Notas de la conversación', type: 'text', x: 1, y: 13, w: 10, h: 3 },
       ],
       created_by: user.id,
     });
@@ -90,7 +90,7 @@ export async function ensureDefaultTemplates(orgId: string) {
       name: 'Trader',
       fields: [
         {
-          id: randomUUID(),
+          id: uid(),
           label: 'Red social de contacto inicial',
           type: 'multiselect',
           options: ['Instagram', 'Facebook', 'Telegram', 'LinkedIn', 'Kick', 'TikTok', 'Página oficial', 'Pipeline', 'Referido'],
@@ -99,19 +99,19 @@ export async function ensureDefaultTemplates(orgId: string) {
           w: 10,
           h: 2,
         },
-        { id: randomUUID(), label: 'Datos de contacto (celular y correo)', type: 'text', x: 1, y: 3, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Qué instrumentos maneja?', type: 'text', x: 6, y: 3, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Cuánto tiempo lleva operando?', type: 'text', x: 1, y: 5, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Qué broker utiliza?', type: 'text', x: 6, y: 5, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Cuánto invierte regularmente?', type: 'text', x: 1, y: 7, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Cuántos lotes mueve al mes?', type: 'text', x: 6, y: 7, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Cuál es tu estrategia de trading?', type: 'text', x: 1, y: 9, w: 10, h: 2 },
-        { id: randomUUID(), label: '¿Qué indicadores o alertas utiliza?', type: 'text', x: 1, y: 11, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Qué plataforma utiliza para tradear?', type: 'text', x: 6, y: 11, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Hace copytrading?', type: 'text', x: 1, y: 13, w: 5, h: 2 },
-        { id: randomUUID(), label: '¿Qué otras herramientas usa? (bots / IA)', type: 'text', x: 6, y: 13, w: 5, h: 2 },
+        { id: uid(), label: 'Datos de contacto (celular y correo)', type: 'text', x: 1, y: 3, w: 5, h: 2 },
+        { id: uid(), label: '¿Qué instrumentos maneja?', type: 'text', x: 6, y: 3, w: 5, h: 2 },
+        { id: uid(), label: '¿Cuánto tiempo lleva operando?', type: 'text', x: 1, y: 5, w: 5, h: 2 },
+        { id: uid(), label: '¿Qué broker utiliza?', type: 'text', x: 6, y: 5, w: 5, h: 2 },
+        { id: uid(), label: '¿Cuánto invierte regularmente?', type: 'text', x: 1, y: 7, w: 5, h: 2 },
+        { id: uid(), label: '¿Cuántos lotes mueve al mes?', type: 'text', x: 6, y: 7, w: 5, h: 2 },
+        { id: uid(), label: '¿Cuál es tu estrategia de trading?', type: 'text', x: 1, y: 9, w: 10, h: 2 },
+        { id: uid(), label: '¿Qué indicadores o alertas utiliza?', type: 'text', x: 1, y: 11, w: 5, h: 2 },
+        { id: uid(), label: '¿Qué plataforma utiliza para tradear?', type: 'text', x: 6, y: 11, w: 5, h: 2 },
+        { id: uid(), label: '¿Hace copytrading?', type: 'text', x: 1, y: 13, w: 5, h: 2 },
+        { id: uid(), label: '¿Qué otras herramientas usa? (bots / IA)', type: 'text', x: 6, y: 13, w: 5, h: 2 },
         {
-          id: randomUUID(),
+          id: uid(),
           label: 'Intereses',
           type: 'multiselect',
           options: ['Educación en trading', 'Mejores herramientas', 'Facilidad para operar', 'Velocidad de respuesta', 'Nuevas estrategias', 'Copytrading'],
@@ -120,7 +120,7 @@ export async function ensureDefaultTemplates(orgId: string) {
           w: 10,
           h: 2,
         },
-        { id: randomUUID(), label: 'Siguiente fecha de follow up', type: 'date', x: 1, y: 17, w: 5, h: 2 },
+        { id: uid(), label: 'Siguiente fecha de follow up', type: 'date', x: 1, y: 17, w: 5, h: 2 },
       ],
       created_by: user.id,
     });
