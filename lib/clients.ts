@@ -7,6 +7,6 @@ export async function fetchClients(): Promise<ClientRow[]> {
     .from('clients')
     .select('id,name,tag,created_at')
     .order('created_at', { ascending: false });
-  if (error) throw error;
+  if (error) throw new Error(error.message);
   return data ?? [];
 }
