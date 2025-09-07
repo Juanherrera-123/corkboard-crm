@@ -32,6 +32,10 @@ export default function LoginPage() {
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!cancelled && data.session) {
+        // Ensure auth cookies exist before redirecting so middleware lets the
+        // request through.  Without syncing the cookies, a stale local session
+        // could trigger an infinite redirect between /login and /home.
+        syncSessionCookies(data.session);
         router.replace('/home');
       }
     })();
