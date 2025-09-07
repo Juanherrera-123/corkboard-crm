@@ -217,7 +217,12 @@ export default function HomePage() {
       alert('Primero crea el cliente');
       return;
     }
-    await addNote(clientId, fieldId, text);
+    try {
+      await addNote(clientId, fieldId, text);
+    } catch (err: any) {
+      alert(err.message || 'Error al agregar la nota');
+      return;
+    }
     const list = await fetchNotes(clientId);
     const byField: Record<string, Note[]> = {};
     list.forEach((n) => {
