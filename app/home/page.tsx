@@ -11,8 +11,9 @@ import {
   saveClientRecord,
   addNote,
   fetchNotes,
-  clearProfileCache,
+  logout,
 } from '@/lib/db';
+import ModalText from '@/components/ModalText';
 import { subscribeClientLive } from '@/lib/realtime';
 import { computeRecommendations } from '@/lib/recommendations';
 
@@ -55,7 +56,7 @@ function FieldCard({
   value: any;
   onChange: (id: string, val: any) => void;
   notes: Note[];
-  onAddNote: (fieldId: string, text: string) => void;
+  onAddNote: (fieldId: string) => void;
 }) {
   const cardStyle: React.CSSProperties = {
     gridColumn: `${field.x} / span ${field.w}`,
@@ -130,10 +131,7 @@ function FieldCard({
         <div className="space-y-2">
           <button
             className="text-sm px-2 py-1 rounded-lg bg-amber-400/80 hover:bg-amber-400"
-            onClick={() => {
-              const t = prompt('Escribe la nota');
-              if (t) onAddNote(field.id, t);
-            }}
+            onClick={() => onAddNote(field.id)}
           >
             Agregar nota +
           </button>
@@ -174,9 +172,9 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }: any) => {
+    supabase.auth.getUser().then(({ data }: any) => {
       if (!active) return;
-      if (!data.session) {
+      if (!data.user) {
         router.replace('/login');
       } else {
         setReady(true);
@@ -204,6 +202,9 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const [answers, setAnswers] = useState<Answers>({});
   const [notes, setNotesState] = useState<Record<string, Note[]>>({});
+
+  const [noteField, setNoteField] = useState<string | null>(null);
+  const [openTplName, setOpenTplName] = useState(false);
 
   const [zoom, setZoom] = useState(1);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -256,19 +257,15 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     setNotesState(byField);
   };
 
-  const saveTemplateBtn = async () => {
+  const saveTemplateBtn = () => {
     if (!tpl) return;
-    const name = prompt('Nombre de la plantilla', tpl.name) || tpl.name;
-    await createTemplate(name, tpl.fields);
-    const list = await fetchTemplates();
-    setTemplates(list as any);
-    alert('Plantilla guardada en Supabase');
+    setOpenTplName(true);
   };
 
   const createClientBtn = async () => {
     unsub.current?.();
     unsub.current = null;
-    const name = clientName || prompt('Nombre del cliente') || 'Sin nombre';
+    const name = clientName.trim() || 'Sin nombre';
     const id = await createClient(name, clientTag);
     setClientId(id);
     alert(`Cliente creado (${id})`);
@@ -316,12 +313,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     }
     await saveClientRecord(clientId, tpl.id, answers, totalScore, recommendations);
     alert('Ficha guardada en Supabase');
-  };
-
-  const logout = async () => {
-    await supabase.auth.signOut();
-    clearProfileCache();
-    router.replace('/login');
   };
 
   const corkBg: React.CSSProperties = {
@@ -396,7 +387,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                 value={answers[f.id]}
                 onChange={updateAnswer}
                 notes={notes[f.id] || []}
-                onAddNote={addNoteLocalAndRemote}
+                onAddNote={(id) => setNoteField(id)}
               />
             ))}
           </div>
@@ -452,6 +443,31 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       </div>
 
       <footer className="py-6 text-center text-xs text-slate-500">Corkboard CRM • Supabase</footer>
+
+      <ModalText
+        open={noteField !== null}
+        title="Agregar nota"
+        placeholder="Escribe la nota"
+        area
+        onClose={() => setNoteField(null)}
+        onSubmit={async (text) => {
+          if (noteField) await addNoteLocalAndRemote(noteField, text);
+        }}
+      />
+
+      <ModalText
+        open={openTplName}
+        title="Nombre de la plantilla"
+        defaultValue={tpl?.name || ''}
+        onClose={() => setOpenTplName(false)}
+        onSubmit={async (name) => {
+          if (!tpl) return;
+          await createTemplate(name.trim() || tpl.name, tpl.fields);
+          const list = await fetchTemplates();
+          setTemplates(list as any);
+          alert('Plantilla guardada en Supabase');
+        }}
+      />
     </div>
   );
 }
