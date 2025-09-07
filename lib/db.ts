@@ -110,6 +110,18 @@ export async function addNote(clientId: string, fieldId: string, text: string) {
   return data;
 }
 
+export async function deleteClient(clientId: string) {
+  const { error: notesError } = await supabase.from('notes').delete().eq('client_id', clientId);
+  if (notesError) throw new Error(notesError.message);
+  const { error: recordsError } = await supabase
+    .from('client_records')
+    .delete()
+    .eq('client_id', clientId);
+  if (recordsError) throw new Error(recordsError.message);
+  const { error } = await supabase.from('clients').delete().eq('id', clientId).single();
+  if (error) throw new Error(error.message);
+}
+
 export async function logout() {
   await supabase.auth.signOut();
   document.cookie = 'sb-access-token=; path=/; max-age=0';
