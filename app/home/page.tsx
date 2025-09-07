@@ -110,7 +110,8 @@ function FieldCard({
                 key={op}
                 onClick={() => {
                   const set = new Set<string>(Array.isArray(value) ? value : []);
-                  active ? set.delete(op) : set.add(op);
+                  if (active) set.delete(op);
+                  else set.add(op);
                   onChange(field.id, Array.from(set));
                 }}
                 className={`px-2 py-1 rounded-full border ${
@@ -185,6 +186,14 @@ export default function HomePage() {
       active = false;
     };
   }, [router]);
+
+  useEffect(() => {
+    const handler = () => {
+      supabase.auth.signOut().catch(() => {});
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, []);
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [tpl, setTpl] = useState<Template | null>(null);
@@ -296,14 +305,8 @@ export default function HomePage() {
     alert('Ficha guardada en Supabase');
   };
 
-  const clearAuthCookies = () => {
-    document.cookie = 'sb-access-token=; path=/; max-age=0; SameSite=Lax';
-    document.cookie = 'sb-refresh-token=; path=/; max-age=0; SameSite=Lax';
-  };
-
   const logout = async () => {
     await supabase.auth.signOut();
-    clearAuthCookies();
     clearProfileCache();
     router.replace('/login');
   };

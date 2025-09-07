@@ -21,8 +21,7 @@ export default function LoginPage() {
     let cancelled = false;
     (async () => {
       const { data } = await supabase.auth.getSession();
-      const hasCookie = typeof document !== 'undefined' && document.cookie.includes('sb-access-token');
-      if (!cancelled && data.session && hasCookie) {
+      if (!cancelled && data.session) {
         router.replace('/home');
       } else if (!cancelled) {
         setReady(true);
