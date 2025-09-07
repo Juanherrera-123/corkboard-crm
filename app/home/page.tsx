@@ -269,8 +269,14 @@ export default function HomePage() {
     alert('Ficha guardada en Supabase');
   };
 
+  const clearAuthCookies = () => {
+    document.cookie = 'sb-access-token=; path=/; max-age=0; SameSite=Lax';
+    document.cookie = 'sb-refresh-token=; path=/; max-age=0; SameSite=Lax';
+  };
+
   const logout = async () => {
     await supabase.auth.signOut();
+    clearAuthCookies();
     clearProfileCache();
     window.location.href = '/login';
   };

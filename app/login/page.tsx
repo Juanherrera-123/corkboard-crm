@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabaseClient';
 
 type Mode = 'login' | 'signup';
@@ -16,6 +17,14 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
+  const syncSessionCookies = (session: Session | null) => {
+    const expires = session?.expires_at
+      ? new Date(session.expires_at * 1000).toUTCString()
+      : '0';
+    document.cookie = `sb-access-token=${session?.access_token ?? ''}; path=/; expires=${expires}; SameSite=Lax`;
+    document.cookie = `sb-refresh-token=${session?.refresh_token ?? ''}; path=/; expires=${expires}; SameSite=Lax`;
+  };
+
   // On first load, if already authenticated, go to /home (once)
   useEffect(() => {
     let cancelled = false;
@@ -23,12 +32,17 @@ export default function LoginPage() {
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!cancelled && data.session) {
+        // Ensure auth cookies exist before redirecting so middleware lets the
+        // request through.  Without syncing the cookies, a stale local session
+        // could trigger an infinite redirect between /login and /home.
+        syncSessionCookies(data.session);
         router.replace('/home');
       }
     })();
 
     // Also listen for auth state changes while this page is open
     const { data: sub } = supabase.auth.onAuthStateChange((_ev, session) => {
+      syncSessionCookies(session);
       if (session) router.replace('/home'); // <-- never redirect back to /login
     });
 
@@ -69,7 +83,10 @@ export default function LoginPage() {
 
       // Intento de sesión inmediata (evita esperar al listener)
       const { data } = await supabase.auth.getSession();
-      if (data.session) router.replace('/home');
+      if (data.session) {
+        syncSessionCookies(data.session);
+        router.replace('/home');
+      }
     } catch (e: any) {
       setMsg(`❌ ${e?.message ?? 'Error al autenticar'}`);
     } finally {
