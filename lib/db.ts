@@ -67,7 +67,6 @@ export async function createClient(name: string, tag: string) {
     .from('clients')
     .insert([{ org_id, name, tag, created_by: userId }])
     .select('id')
-    .limit(1)
     .single();
 
   if (error) throw error;
