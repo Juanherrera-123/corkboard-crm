@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import Sidebar from '@/components/Sidebar';
 import ModalCreateClient from '@/components/ModalCreateClient';
 import { fetchClients } from '@/lib/clients';
-import { createClient } from '@/lib/db';
+import { createClient, logout } from '@/lib/db';
 import type { ClientRow } from '@/lib/clients';
 
 export default function DashboardPage() {
@@ -21,7 +21,7 @@ export default function DashboardPage() {
     (async () => {
       const { data } = await supabase.auth.getUser();
       if (!data.user) {
-        window.location.href = '/login';
+        router.replace('/login');
         return;
       }
       setEmail(data.user.email ?? null);
@@ -34,7 +34,7 @@ export default function DashboardPage() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [router]);
 
   async function onCreate(name: string, tag: string) {
     const id = await createClient(name, tag);
@@ -47,17 +47,25 @@ export default function DashboardPage() {
         <Sidebar />
         <main className="flex-1 p-6">
           <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-slate-800">Tus fichas</h1>
-            {email && <p className="text-sm text-slate-600">Hola, {email}</p>}
-          </div>
-          <button
-            className="rounded-lg bg-sky-600 text-white px-4 py-2 hover:bg-sky-700"
-            onClick={() => setOpenCreate(true)}
-            aria-label="Crear nuevo cliente"
-          >
-            Crear nuevo cliente
-          </button>
+            <div>
+              <h1 className="text-xl font-semibold text-slate-800">Tus fichas</h1>
+              {email && <p className="text-sm text-slate-600">Hola, {email}</p>}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                className="rounded-lg bg-sky-600 text-white px-4 py-2 hover:bg-sky-700"
+                onClick={() => setOpenCreate(true)}
+                aria-label="Crear nuevo cliente"
+              >
+                Crear nuevo cliente
+              </button>
+              <button
+                className="rounded-lg border bg-white px-4 py-2 hover:bg-slate-50"
+                onClick={logout}
+              >
+                Salir
+              </button>
+            </div>
           </div>
 
           {msg && <p className="mt-3 text-sm text-rose-600">{msg}</p>}

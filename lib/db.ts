@@ -104,3 +104,11 @@ export async function addNote(clientId: string, fieldId: string, text: string) {
     .insert({ client_id: clientId, field_id: fieldId, text, created_by: user.id });
   if (error) throw error;
 }
+
+export async function logout() {
+  await supabase.auth.signOut();
+  document.cookie = 'sb-access-token=; path=/; max-age=0';
+  document.cookie = 'sb-refresh-token=; path=/; max-age=0';
+  clearProfileCache();
+  window.location.href = '/login';
+}
