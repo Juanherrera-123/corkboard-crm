@@ -1,7 +1,7 @@
 'use client';
 export const dynamic = 'force-dynamic';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import { fetchTemplates, addNote, fetchNotes, deleteClient } from '@/lib/db';
@@ -45,7 +45,7 @@ const Badge = ({ children }: { children: React.ReactNode }) => (
   <span className="px-2 py-0.5 rounded-full text-xs bg-slate-800 text-white/90">{children}</span>
 );
 
-function FieldCard({
+const FieldCard = memo(function FieldCard({
   field,
   value,
   onChange,
@@ -58,48 +58,56 @@ function FieldCard({
   notes: Note[];
   onAddNote: (fieldId: string) => void;
 }) {
+  const valueStr = value == null ? '' : Array.isArray(value) ? value : String(value);
+
   const cardStyle: React.CSSProperties = {
     gridColumn: `${field.x} / span ${field.w}`,
     gridRow: `${field.y} / span ${field.h}`,
   };
 
-  const Input = () => {
-    if (field.type === 'text')
-      return (
+  const renderNumberLike = () => (
+    <input
+      type="text"
+      inputMode="numeric"
+      pattern="[0-9.,-]*"
+      className="w-full rounded-lg border border-slate-200 bg-white/70 p-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
+      placeholder={field.type === 'currency' ? '$' : '0'}
+      value={valueStr as string}
+      onChange={(e) => onChange(field.id, e.target.value)}
+    />
+  );
+
+  let Input: React.ReactNode = null;
+  switch (field.type) {
+    case 'text':
+      Input = (
         <textarea
           className="w-full h-24 resize-none rounded-lg border border-slate-200 bg-white/70 p-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
           placeholder="Escribe..."
-          value={typeof value === 'string' ? value : value ?? ''}
+          value={valueStr as string}
           onChange={(e) => onChange(field.id, e.target.value)}
         />
       );
-
-    if (field.type === 'number' || field.type === 'currency')
-      return (
-        <input
-          type="number"
-          className="w-full rounded-lg border border-slate-200 bg-white/70 p-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
-          placeholder={field.type === 'currency' ? '$' : '0'}
-          value={value === '' ? '' : typeof value === 'number' ? value : value || ''}
-          onChange={(e) => onChange(field.id, e.target.value === '' ? '' : Number(e.target.value))}
-        />
-      );
-
-    if (field.type === 'date')
-      return (
+      break;
+    case 'number':
+    case 'currency':
+      Input = renderNumberLike();
+      break;
+    case 'date':
+      Input = (
         <input
           type="date"
           className="w-full rounded-lg border border-slate-200 bg-white/70 p-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
-          value={typeof value === 'string' ? value : value ?? ''}
+          value={valueStr as string}
           onChange={(e) => onChange(field.id, e.target.value)}
         />
       );
-
-    if (field.type === 'select')
-      return (
+      break;
+    case 'select':
+      Input = (
         <select
           className="w-full rounded-lg border border-slate-200 bg-white/70 p-2"
-          value={typeof value === 'string' ? value : ''}
+          value={valueStr as string}
           onChange={(e) => onChange(field.id, e.target.value)}
         >
           <option value="">Selecciona...</option>
@@ -110,17 +118,18 @@ function FieldCard({
           ))}
         </select>
       );
-
-    if (field.type === 'multiselect')
-      return (
+      break;
+    case 'multiselect':
+      Input = (
         <div className="flex flex-wrap gap-2">
           {(field.options || []).map((op) => {
-            const active = Array.isArray(value) ? value.includes(op) : false;
+            const set = new Set<string>(Array.isArray(value) ? value : []);
+            const active = set.has(op);
             return (
               <button
+                type="button"
                 key={op}
                 onClick={() => {
-                  const set = new Set<string>(Array.isArray(value) ? value : []);
                   if (active) set.delete(op);
                   else set.add(op);
                   onChange(field.id, Array.from(set));
@@ -135,11 +144,12 @@ function FieldCard({
           })}
         </div>
       );
-
-    if (field.type === 'note')
-      return (
+      break;
+    case 'note':
+      Input = (
         <div className="space-y-2">
           <button
+            type="button"
             className="text-sm px-2 py-1 rounded-lg bg-amber-400/80 hover:bg-amber-400"
             onClick={() => onAddNote(field.id)}
           >
@@ -157,9 +167,8 @@ function FieldCard({
           </div>
         </div>
       );
-
-    return null;
-  };
+      break;
+  }
 
   return (
     <div
@@ -170,10 +179,10 @@ function FieldCard({
         <div className="font-semibold text-slate-800">{field.label}</div>
         <Badge>{field.type}</Badge>
       </div>
-      <Input />
+      {Input}
     </div>
   );
-}
+});
 
 export default function HomePage({ searchParams }: { searchParams: { client?: string } }) {
   const router = useRouter();
@@ -245,7 +254,12 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const recommendations = useMemo(() => computeRecommendations(answers, labelMap), [answers, labelMap]);
 
-  const updateAnswer = (id: string, val: any) => setAnswers((prev) => ({ ...prev, [id]: val }));
+  const updateAnswer = useCallback((id: string, val: any) => {
+    setAnswers((prev) => {
+      if (prev[id] === val) return prev;
+      return { ...prev, [id]: val };
+    });
+  }, []);
 
   const addNoteLocalAndRemote = async (fieldId: string, text: string) => {
     if (!clientId) {
