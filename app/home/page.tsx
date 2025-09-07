@@ -12,6 +12,7 @@ import {
   fetchNotes,
 } from '@/lib/db';
 import { subscribeClientLive } from '@/lib/realtime';
+import { computeRecommendations } from '@/lib/recommendations';
 
 type FieldType = 'text' | 'number' | 'select' | 'multiselect' | 'currency' | 'note';
 
@@ -36,33 +37,6 @@ type Answers = Record<string, any>;
 type Note = { id: string; field_id: string; text: string; created_at?: string; created_by?: string };
 
 const gridCols = 10;
-
-/** IDs deterministas para evitar hydration mismatch */
-function computeRecommendations(answers: Answers, tpl: Template | null) {
-  const get = (label: string) => {
-    if (!tpl) return undefined;
-    const f = tpl.fields.find((x) => x.label.trim() === label.trim());
-    if (!f) return undefined;
-    return answers[f.id];
-  };
-  const pain: string[] = Array.isArray(get('Pain points')) ? get('Pain points') : [];
-  const vol: number = Number(get('Volumen mensual (USD)') ?? 0);
-  const budget: number = Number(get('Presupuesto / Ticket medio (USD)') ?? 0);
-  const instruments: string[] = Array.isArray(get('Instrumentos principales')) ? get('Instrumentos principales') : [];
-  const clientType: string = String(get('Tipo de cliente (IB / Copytrader / Cuenta)') ?? '');
-
-  const recs: { id: string; title: string; reason: string; score: number }[] = [];
-  const mk = (title: string, reason: string, score: number) => ({ id: `${title}-${score}`, title, reason, score });
-
-  if (pain.includes('spreads altos')) recs.push(mk('Plan Spreads Bajos', 'Reporta spreads altos', 20));
-  if (pain.includes('ejecución lenta')) recs.push(mk('Servidor Pro + VPS', 'Menor latencia', 18));
-  if (vol >= 50_000) recs.push(mk('Cuenta ECN + Rebate', `Volumen ≈ $${vol.toLocaleString()}`, 25));
-  if (budget >= 5000 && clientType === 'Copytrader') recs.push(mk('Programa Copy Pro', 'Copytrader con presupuesto', 22));
-  if (instruments.includes('XAU')) recs.push(mk('Rutas XAU baja latencia', 'Opera oro', 12));
-  if (!recs.length) recs.push(mk('Onboarding + Diagnóstico', 'Sin señales fuertes', 8));
-
-  return recs.sort((a, b) => b.score - a.score);
-}
 
 const Badge = ({ children }: { children: React.ReactNode }) => (
   <span className="px-2 py-0.5 rounded-full text-xs bg-slate-800 text-white/90">{children}</span>
@@ -209,7 +183,15 @@ export default function HomePage() {
     })();
   }, []);
 
-  const recommendations = useMemo(() => computeRecommendations(answers, tpl), [answers, tpl]);
+  const labelMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    tpl?.fields.forEach((f) => {
+      map[f.label.trim()] = f.id;
+    });
+    return map;
+  }, [tpl]);
+
+  const recommendations = useMemo(() => computeRecommendations(answers, labelMap), [answers, labelMap]);
   const totalScore = useMemo(() => recommendations.reduce((a, b) => a + b.score, 0), [recommendations]);
 
   const updateAnswer = (id: string, val: any) => setAnswers((prev) => ({ ...prev, [id]: val }));
