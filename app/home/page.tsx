@@ -167,7 +167,7 @@ function FieldCard({
   );
 }
 
-export default function HomePage() {
+export default function HomePage({ searchParams }: { searchParams: { client?: string } }) {
   const router = useRouter();
   // Protección de ruta: esperamos conocer la sesión antes de renderizar el dashboard
   const [ready, setReady] = useState(false);
@@ -209,6 +209,10 @@ export default function HomePage() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const unsub = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (searchParams?.client) setClientId(searchParams.client);
+  }, [searchParams?.client]);
 
   useEffect(() => {
     (async () => {
@@ -273,15 +277,24 @@ export default function HomePage() {
   useEffect(() => {
     if (!clientId) return;
 
+    (async () => {
+      const list = await fetchNotes(clientId);
+      const byField: Record<string, Note[]> = {};
+      list.forEach((n: any) => {
+        (byField[n.field_id] ||= []).push(n as any);
+      });
+      setNotesState(byField);
+    })();
+
     const u = subscribeClientLive(
       clientId,
       () => {},
       async () => {
         const list = await fetchNotes(clientId);
         const byField: Record<string, Note[]> = {};
-          list.forEach((n: any) => {
-            (byField[n.field_id] ||= []).push(n as any);
-          });
+        list.forEach((n: any) => {
+          (byField[n.field_id] ||= []).push(n as any);
+        });
         setNotesState(byField);
       }
     );
