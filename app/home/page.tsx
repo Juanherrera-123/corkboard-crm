@@ -56,7 +56,10 @@ function FieldCard({
   notes: Note[];
   onAddNote: (fieldId: string, text: string) => void;
 }) {
-  const cardStyle: React.CSSProperties = { gridColumn: `${field.x} / span ${field.w}`, gridRow: `${field.y} / span ${field.h}` };
+  const cardStyle: React.CSSProperties = {
+    gridColumn: `${field.x} / span ${field.w}`,
+    gridRow: `${field.y} / span ${field.h}`,
+  };
 
   const Input = () => {
     if (field.type === 'text')
@@ -68,6 +71,7 @@ function FieldCard({
           onChange={(e) => onChange(field.id, e.target.value)}
         />
       );
+
     if (field.type === 'number' || field.type === 'currency')
       return (
         <input
@@ -78,6 +82,7 @@ function FieldCard({
           onChange={(e) => onChange(field.id, e.target.value === '' ? '' : Number(e.target.value))}
         />
       );
+
     if (field.type === 'select')
       return (
         <select
@@ -93,6 +98,7 @@ function FieldCard({
           ))}
         </select>
       );
+
     if (field.type === 'multiselect')
       return (
         <div className="flex flex-wrap gap-2">
@@ -116,6 +122,7 @@ function FieldCard({
           })}
         </div>
       );
+
     if (field.type === 'note')
       return (
         <div className="space-y-2">
@@ -130,18 +137,25 @@ function FieldCard({
           </button>
           <div className="flex flex-wrap gap-2">
             {(notes || []).map((n) => (
-              <div key={n.id} className="w-36 h-28 bg-amber-200 rounded shadow rotate-[-1deg] p-2 text-[12px] overflow-hidden">
+              <div
+                key={n.id}
+                className="w-36 h-28 bg-amber-200 rounded shadow rotate-[-1deg] p-2 text-[12px] overflow-hidden"
+              >
                 {n.text}
               </div>
             ))}
           </div>
         </div>
       );
+
     return null;
   };
 
   return (
-    <div style={cardStyle} className="relative rounded-2xl shadow-sm border border-slate-200 bg-white/80 backdrop-blur p-3 flex flex-col gap-2">
+    <div
+      style={cardStyle}
+      className="relative rounded-2xl shadow-sm border border-slate-200 bg-white/80 backdrop-blur p-3 flex flex-col gap-2"
+    >
       <div className="flex items-center justify-between">
         <div className="font-semibold text-slate-800">{field.label}</div>
         <Badge>{field.type}</Badge>
@@ -152,11 +166,23 @@ function FieldCard({
 }
 
 export default function HomePage() {
-  /** Protección de ruta: si no hay sesión, redirige a /login */
+  // Protección de ruta: esperamos conocer la sesión antes de renderizar el dashboard
+  const [ready, setReady] = useState(false);
+
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) window.location.href = '/login';
-    });
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (!data.session) {
+        window.location.href = '/login';
+      } else {
+        setReady(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -288,6 +314,14 @@ export default function HomePage() {
     backgroundPosition: '0 0, 8px 8px',
   };
 
+  if (!ready) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-slate-50">
+        <div className="text-slate-600">Cargando…</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen w-full bg-slate-100">
       <div className="sticky top-0 z-20 backdrop-blur bg-white/70 border-b border-slate-200">
@@ -365,7 +399,7 @@ export default function HomePage() {
                     <div className="font-medium text-slate-800">{r.title}</div>
                     <Badge>+{r.score}</Badge>
                   </div>
-                  <div className="text-xs text-slate-600 mt-1">{r.reason}</div>
+                    <div className="text-xs text-slate-600 mt-1">{r.reason}</div>
                 </div>
               ))}
             </div>
@@ -379,7 +413,9 @@ export default function HomePage() {
                 <button
                   key={t.id}
                   onClick={() => setTpl(t as any)}
-                  className={`text-left rounded-xl border p-2 hover:bg-slate-50 ${tpl?.id === t.id ? 'border-sky-600 ring-1 ring-sky-300' : ''}`}
+                  className={`text-left rounded-xl border p-2 hover:bg-slate-50 ${
+                    tpl?.id === t.id ? 'border-sky-600 ring-1 ring-sky-300' : ''
+                  }`}
                 >
                   <div className="font-medium text-slate-800 truncate">{t.name}</div>
                   <div className="text-[11px] text-slate-500">{(t.fields || []).length} preguntas</div>
