@@ -44,15 +44,34 @@ export async function createTemplate(name: string, fields: any[]) {
   if (error) throw error;
 }
 
-export async function createClient(name: string, tag = 'Lead') {
-  const { org_id, user } = await getMyProfile();
+export async function createClient(name: string, tag: string) {
+  // 1) usuario actual
+  const { data: u, error: eu } = await supabase.auth.getUser();
+  if (eu) throw eu;
+  const userId = u.user?.id;
+  if (!userId) throw new Error('No hay sesión');
+
+  // 2) org_id desde profiles
+  const { data: prof, error: ep } = await supabase
+    .from('profiles')
+    .select('org_id')
+    .eq('user_id', userId)
+    .limit(1)
+    .single();
+  if (ep) throw ep;
+  const org_id = prof.org_id;
+  if (!org_id) throw new Error('No se encontró org_id para el usuario');
+
+  // 3) insert
   const { data, error } = await supabase
     .from('clients')
-    .insert({ org_id, name, tag, created_by: user.id })
+    .insert([{ org_id, name, tag, created_by: userId }])
     .select('id')
+    .limit(1)
     .single();
+
   if (error) throw error;
-  return data.id as string;
+  return data!.id as string;
 }
 
 export async function saveClientRecord(clientId: string, templateId: string, answers: any, score: number, matches: any[]) {
