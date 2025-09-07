@@ -49,95 +49,75 @@ export async function createTemplate(name: string, fields: any[]) {
 }
 
 export async function ensureDefaultTemplates(orgId: string) {
+  const { count, error: countErr } = await supabase
+    .from('templates')
+    .select('id', { count: 'exact', head: true })
+    .eq('org_id', orgId);
+  if (countErr) throw new Error(countErr.message);
+  if ((count ?? 0) > 0) return;
+
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error('No logueado');
+  const ibFields = [
+    { id: uid(), label: '¿Qué tan grande es su Comunidad?', type: 'text', x: 1, y: 1, w: 5, h: 2 },
+    { id: uid(), label: '¿Tiene un equipo de trabajo? ¿Cuántas personas?', type: 'text', x: 6, y: 1, w: 5, h: 2 },
+    { id: uid(), label: '¿Cómo funciona su Comunidad? (Nuevos clientes)', type: 'text', x: 1, y: 3, w: 10, h: 2 },
+    { id: uid(), label: '¿Qué broker utiliza actualmente?', type: 'text', x: 1, y: 5, w: 5, h: 2 },
+    { id: uid(), label: '¿Qué plataforma utiliza para tradear?', type: 'text', x: 6, y: 5, w: 5, h: 2 },
+    { id: uid(), label: '¿Qué tipo de instrumentos tradea?', type: 'text', x: 1, y: 7, w: 5, h: 2 },
+    { id: uid(), label: 'Datos de contacto (celular y correo)', type: 'text', x: 6, y: 7, w: 5, h: 2 },
+    { id: uid(), label: 'Estimación/plan de crecimiento', type: 'text', x: 1, y: 9, w: 5, h: 2 },
+    { id: uid(), label: '¿Qué le interesa o está buscando?', type: 'text', x: 6, y: 9, w: 5, h: 2 },
+    { id: uid(), label: 'Siguiente fecha de follow up', type: 'date', x: 1, y: 11, w: 5, h: 2 },
+    { id: uid(), label: 'Notas de la conversación', type: 'note', x: 1, y: 13, w: 10, h: 3 },
+  ];
 
-  const { data: existing, error: existingErr } = await supabase
+  const traderFields = [
+    {
+      id: uid(),
+      label: 'Red social de contacto inicial',
+      type: 'multiselect',
+      options: ['Instagram', 'Facebook', 'Telegram', 'LinkedIn', 'Kick', 'TikTok', 'Página oficial', 'Pipeline', 'Referido'],
+      x: 1,
+      y: 1,
+      w: 10,
+      h: 2,
+    },
+    { id: uid(), label: 'Datos de contacto (celular y correo)', type: 'text', x: 1, y: 3, w: 5, h: 2 },
+    { id: uid(), label: '¿Qué instrumentos maneja?', type: 'text', x: 6, y: 3, w: 5, h: 2 },
+    { id: uid(), label: '¿Cuánto tiempo lleva operando?', type: 'text', x: 1, y: 5, w: 5, h: 2 },
+    { id: uid(), label: '¿Qué broker utiliza?', type: 'text', x: 6, y: 5, w: 5, h: 2 },
+    { id: uid(), label: '¿Cuánto invierte regularmente?', type: 'text', x: 1, y: 7, w: 5, h: 2 },
+    { id: uid(), label: '¿Cuántos lotes mueve al mes?', type: 'text', x: 6, y: 7, w: 5, h: 2 },
+    { id: uid(), label: '¿Cuál es tu estrategia de trading?', type: 'text', x: 1, y: 9, w: 10, h: 2 },
+    { id: uid(), label: '¿Qué indicadores o alertas utiliza?', type: 'text', x: 1, y: 11, w: 5, h: 2 },
+    { id: uid(), label: '¿Qué plataforma utiliza para tradear?', type: 'text', x: 6, y: 11, w: 5, h: 2 },
+    { id: uid(), label: '¿Hace copytrading?', type: 'text', x: 1, y: 13, w: 5, h: 2 },
+    { id: uid(), label: '¿Qué otras herramientas usa? (bots / IA)', type: 'text', x: 6, y: 13, w: 5, h: 2 },
+    {
+      id: uid(),
+      label: 'Intereses',
+      type: 'multiselect',
+      options: ['Educación en trading', 'Mejores herramientas', 'Facilidad para operar', 'Velocidad de respuesta', 'Nuevas estrategias', 'Copytrading'],
+      x: 1,
+      y: 15,
+      w: 10,
+      h: 2,
+    },
+    { id: uid(), label: 'Siguiente fecha de follow up', type: 'date', x: 1, y: 17, w: 5, h: 2 },
+  ];
+
+  const rows = [
+    { org_id: orgId, name: 'IB', fields: ibFields, created_by: user.id },
+    { org_id: orgId, name: 'Trader', fields: traderFields, created_by: user.id },
+  ];
+
+  const { error: insertErr } = await supabase
     .from('templates')
-    .select('name')
-    .eq('org_id', orgId)
-    .in('name', ['IB', 'Trader']);
-  if (existingErr) throw new Error(existingErr.message);
-  const names = existing?.map((t) => t.name) || [];
-
-  const inserts: any[] = [];
-  if (!names.includes('IB')) {
-    inserts.push({
-      org_id: orgId,
-      name: 'IB',
-      fields: [
-        { id: uid(), label: '¿Qué tan grande es su Comunidad?', type: 'text', x: 1, y: 1, w: 5, h: 2 },
-        { id: uid(), label: '¿Tiene un equipo de trabajo? ¿Cuántas personas?', type: 'text', x: 6, y: 1, w: 5, h: 2 },
-        { id: uid(), label: '¿Cómo funciona su Comunidad? (Nuevos clientes)', type: 'text', x: 1, y: 3, w: 10, h: 2 },
-        { id: uid(), label: '¿Qué broker utiliza actualmente?', type: 'text', x: 1, y: 5, w: 5, h: 2 },
-        { id: uid(), label: '¿Qué plataforma utiliza para tradear?', type: 'text', x: 6, y: 5, w: 5, h: 2 },
-        { id: uid(), label: '¿Qué tipo de instrumentos tradea?', type: 'text', x: 1, y: 7, w: 5, h: 2 },
-        { id: uid(), label: 'Datos de contacto (celular y correo)', type: 'text', x: 6, y: 7, w: 5, h: 2 },
-        { id: uid(), label: 'Estimación/plan de crecimiento', type: 'text', x: 1, y: 9, w: 5, h: 2 },
-        { id: uid(), label: '¿Qué le interesa o está buscando?', type: 'text', x: 6, y: 9, w: 5, h: 2 },
-        { id: uid(), label: 'Siguiente fecha de follow up', type: 'date', x: 1, y: 11, w: 5, h: 2 },
-        { id: uid(), label: 'Notas de la conversación', type: 'text', x: 1, y: 13, w: 10, h: 3 },
-      ],
-      created_by: user.id,
-    });
-  }
-
-  if (!names.includes('Trader')) {
-    inserts.push({
-      org_id: orgId,
-      name: 'Trader',
-      fields: [
-        {
-          id: uid(),
-          label: 'Red social de contacto inicial',
-          type: 'multiselect',
-          options: ['Instagram', 'Facebook', 'Telegram', 'LinkedIn', 'Kick', 'TikTok', 'Página oficial', 'Pipeline', 'Referido'],
-          x: 1,
-          y: 1,
-          w: 10,
-          h: 2,
-        },
-        { id: uid(), label: 'Datos de contacto (celular y correo)', type: 'text', x: 1, y: 3, w: 5, h: 2 },
-        { id: uid(), label: '¿Qué instrumentos maneja?', type: 'text', x: 6, y: 3, w: 5, h: 2 },
-        { id: uid(), label: '¿Cuánto tiempo lleva operando?', type: 'text', x: 1, y: 5, w: 5, h: 2 },
-        { id: uid(), label: '¿Qué broker utiliza?', type: 'text', x: 6, y: 5, w: 5, h: 2 },
-        { id: uid(), label: '¿Cuánto invierte regularmente?', type: 'text', x: 1, y: 7, w: 5, h: 2 },
-        { id: uid(), label: '¿Cuántos lotes mueve al mes?', type: 'text', x: 6, y: 7, w: 5, h: 2 },
-        { id: uid(), label: '¿Cuál es tu estrategia de trading?', type: 'text', x: 1, y: 9, w: 10, h: 2 },
-        { id: uid(), label: '¿Qué indicadores o alertas utiliza?', type: 'text', x: 1, y: 11, w: 5, h: 2 },
-        { id: uid(), label: '¿Qué plataforma utiliza para tradear?', type: 'text', x: 6, y: 11, w: 5, h: 2 },
-        { id: uid(), label: '¿Hace copytrading?', type: 'text', x: 1, y: 13, w: 5, h: 2 },
-        { id: uid(), label: '¿Qué otras herramientas usa? (bots / IA)', type: 'text', x: 6, y: 13, w: 5, h: 2 },
-        {
-          id: uid(),
-          label: 'Intereses',
-          type: 'multiselect',
-          options: ['Educación en trading', 'Mejores herramientas', 'Facilidad para operar', 'Velocidad de respuesta', 'Nuevas estrategias', 'Copytrading'],
-          x: 1,
-          y: 15,
-          w: 10,
-          h: 2,
-        },
-        { id: uid(), label: 'Siguiente fecha de follow up', type: 'date', x: 1, y: 17, w: 5, h: 2 },
-      ],
-      created_by: user.id,
-    });
-  }
-
-  if (inserts.length) {
-    const { error: insertErr } = await supabase.from('templates').insert(inserts);
-    if (insertErr) throw new Error(insertErr.message);
-  }
-
-  const { data: final, error: finalErr } = await supabase
-    .from('templates')
-    .select('id,name,fields,created_at')
-    .eq('org_id', orgId)
-    .order('created_at', { ascending: true });
-  if (finalErr) throw new Error(finalErr.message);
-  return final;
+    .upsert(rows, { onConflict: 'org_id,name', ignoreDuplicates: true });
+  if (insertErr) throw new Error(insertErr.message);
 }
 
 export async function createClient(name: string, tag: string) {
