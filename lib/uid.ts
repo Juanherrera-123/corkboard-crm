@@ -1,3 +1,4 @@
+
 /**
  * Generate a unique identifier using the platform's crypto API when available,
  * falling back to a simple random string.

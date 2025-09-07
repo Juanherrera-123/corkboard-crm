@@ -60,7 +60,6 @@ export async function ensureDefaultTemplates(orgId: string) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error('No logueado');
-
   const ibFields = [
     { id: uid(), label: '¿Qué tan grande es su Comunidad?', type: 'text', x: 1, y: 1, w: 5, h: 2 },
     { id: uid(), label: '¿Tiene un equipo de trabajo? ¿Cuántas personas?', type: 'text', x: 6, y: 1, w: 5, h: 2 },
