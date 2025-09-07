@@ -10,6 +10,7 @@ import {
   saveClientRecord,
   addNote,
   fetchNotes,
+  clearProfileCache,
 } from '@/lib/db';
 import { subscribeClientLive } from '@/lib/realtime';
 
@@ -270,6 +271,7 @@ export default function HomePage() {
 
   const logout = async () => {
     await supabase.auth.signOut();
+    clearProfileCache();
     window.location.href = '/login';
   };
 
