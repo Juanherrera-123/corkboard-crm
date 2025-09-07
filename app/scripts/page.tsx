@@ -10,7 +10,7 @@ export default function ScriptsPage() {
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getUser().then(({ data }) => {
+    supabase.auth.getUser().then(({ data }: any) => {
       if (!active) return;
       if (!data.user) {
         router.replace('/login');
