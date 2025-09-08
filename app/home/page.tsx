@@ -312,16 +312,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       return { ...prev, [id]: val };
     });
   }, []);
-
-  const onSaveClick = useCallback(async () => {
-    try {
-      await save(true);
-      alert('Guardado');
-    } catch (e: any) {
-      alert(`Error al guardar: ${e.message}`);
-    }
-  }, [save]);
-
   const save = useCallback(
     async (force = false) => {
       if (!clientId || !tpl) return;
@@ -355,6 +345,15 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     },
     [clientId, tpl, tplDirty, answers, labelMap]
   );
+
+  const onSaveClick = useCallback(async () => {
+    try {
+      await save(true);
+      alert('Guardado');
+    } catch (e: any) {
+      alert(`Error al guardar: ${e.message}`);
+    }
+  }, [save]);
 
   useEffect(() => {
     if (!clientId || !tpl?.id) return;
