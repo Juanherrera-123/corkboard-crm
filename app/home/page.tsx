@@ -11,6 +11,7 @@ import {
   deleteClient,
   saveClientRecord,
   fetchLatestRecord,
+  upsertTemplateFields,
 } from '@/lib/db';
 import ModalText from '@/components/ModalText';
 import { subscribeClientLive } from '@/lib/realtime';
@@ -216,6 +217,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [tpl, setTpl] = useState<Template | null>(null);
+  const [tplDirty, setTplDirty] = useState(false);
 
   const [clientId, setClientId] = useState<string>('');
   const [client, setClient] = useState<ClientRow | null>(null);
@@ -265,7 +267,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     (async () => {
       const list = await fetchTemplates();
       setTemplates(list as any);
-      if (list.length) setTpl(list[0] as any);
+      if (list.length) {
+        setTpl(list[0] as any);
+        setTplDirty(false);
+      }
     })();
   }, []);
 
@@ -280,7 +285,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         }
         if (rec?.template_id) {
           const t = templates.find((t) => t.id === rec.template_id);
-          if (t) setTpl(t as any);
+          if (t) {
+            setTpl(t as any);
+            setTplDirty(false);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -304,31 +312,27 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       return { ...prev, [id]: val };
     });
   }, []);
-
-  const onSaveClick = useCallback(async () => {
-    if (!clientId || !tpl?.id) return;
-    setSaving(true);
-    try {
-      const totalScore = recommendations.reduce((s, r) => s + r.score, 0);
-      await saveClientRecord(clientId, tpl.id, answers, totalScore, recommendations);
-      alert('Guardado');
-    } catch (e: any) {
-      alert(`Error al guardar: ${e.message}`);
-    } finally {
-      setSaving(false);
-    }
-  }, [clientId, tpl, answers, recommendations]);
-
   const save = useCallback(
     async (force = false) => {
       if (!clientId || !tpl) return;
       const current = JSON.stringify(answers);
-      if (!force && current === lastSavedRef.current) return;
+      if (!force && current === lastSavedRef.current && !tplDirty) return;
       setSaving(true);
+      console.debug('Saving...', {
+        tplDirty,
+        tplId: tpl?.id,
+        fieldsCount: tpl?.fields.length,
+        answersKeys: Object.keys(answers).length,
+      });
       try {
+        if (tplDirty) {
+          const data = await upsertTemplateFields(tpl.id, tpl.fields);
+          console.debug('Template fields updated:', data?.id, (data?.fields || []).length);
+          setTplDirty(false);
+        }
         const recs = computeRecommendations(answers, labelMap);
         const score = recs.reduce((s, r) => s + r.score, 0);
-        await saveClientRecord(clientId, tpl.id, answers, score, recs);
+        await saveClientRecord(clientId, tpl.id, answers, score, recs, tpl.fields);
         lastSavedRef.current = current;
         setAutoMsg('Guardado');
       } catch (err: any) {
@@ -339,14 +343,23 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         setSaving(false);
       }
     },
-    [clientId, tpl, answers, labelMap]
+    [clientId, tpl, tplDirty, answers, labelMap]
   );
+
+  const onSaveClick = useCallback(async () => {
+    try {
+      await save(true);
+      alert('Guardado');
+    } catch (e: any) {
+      alert(`Error al guardar: ${e.message}`);
+    }
+  }, [save]);
 
   useEffect(() => {
     if (!clientId || !tpl?.id) return;
     const h = setTimeout(async () => {
       const current = JSON.stringify(latestAnswers.current);
-      if (current === lastSavedRef.current) return;
+      if (current === lastSavedRef.current && !tplDirty) return;
       try {
         await save();
         setAutoMsg('Guardado automático');
@@ -356,7 +369,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       }
     }, 700);
     return () => clearTimeout(h);
-  }, [answers, clientId, tpl?.id, save]);
+  }, [answers, clientId, tpl?.id, tplDirty, save]);
 
   useEffect(() => {
     const handler = () => {
@@ -504,6 +517,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                     key={t.id}
                     onClick={() => {
                       setTpl(t as any);
+                      setTplDirty(false);
                       setTplMenuOpen(false);
                     }}
                     className="block w-full text-left px-3 py-2 hover:bg-slate-50"
@@ -661,6 +675,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                       : {}),
                   };
                   setTpl((prev) => (prev ? { ...prev, fields: [...prev.fields, field] } : prev));
+                  setTplDirty(true);
                   setAddFieldOpen(false);
                   setNewLabel('');
                   setNewType('text');

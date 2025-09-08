@@ -170,24 +170,30 @@ function normalizeAnswersBeforeSave(
 ) {
   const byId = new Map(fields.map((f) => [f.id, f.type]));
   const out: Record<string, any> = {};
-
   for (const [k, v] of Object.entries(answers)) {
     const t = byId.get(k);
     if (t === 'number' || t === 'currency') {
-      if (typeof v === 'string') {
-        const cleaned = v.replace(',', '.').trim();
-        const num = Number(cleaned);
-        out[k] = Number.isFinite(num) ? num : null;
-      } else if (typeof v === 'number') {
-        out[k] = v;
-      } else {
-        out[k] = null;
-      }
+      const str = typeof v === 'string' ? v : String(v ?? '');
+      const cleaned = str.replace(',', '.').trim();
+      const num = Number(cleaned);
+      out[k] = Number.isFinite(num) ? num : null;
     } else {
+      // si no hay tipo (campo nuevo no persistido aún), conservar el valor
       out[k] = v;
     }
   }
   return out;
+}
+
+export async function upsertTemplateFields(templateId: string, fields: any[]) {
+  const { data, error } = await supabase
+    .from('templates')
+    .update({ fields })
+    .eq('id', templateId)
+    .select('id, fields')
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 export async function saveClientRecord(
@@ -195,17 +201,19 @@ export async function saveClientRecord(
   templateId: string,
   answers: Record<string, any>,
   score: number,
-  matches: any[]
+  matches: any[],
+  fields: { id: string; type: string }[]
 ) {
   if (!clientId || !templateId) throw new Error('Faltan ids');
 
-  const { data: tpl, error: tErr } = await supabase
-    .from('templates')
-    .select('id, fields')
-    .eq('id', templateId)
-    .single();
-  if (tErr) throw tErr;
-  const normalized = normalizeAnswersBeforeSave(answers, tpl.fields);
+  const normalized = normalizeAnswersBeforeSave(answers, fields);
+  console.debug('saveClientRecord payload:', {
+    clientId,
+    templateId,
+    score,
+    matchesLen: matches?.length,
+    answersKeys: Object.keys(normalized).length,
+  });
 
   const payload = {
     client_id: clientId,
@@ -214,8 +222,6 @@ export async function saveClientRecord(
     score,
     matches: matches ?? [],
   };
-
-  console.debug('saveClientRecord payload', payload);
 
   const { data, error } = await supabase
     .from('client_records')
