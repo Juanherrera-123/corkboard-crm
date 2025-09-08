@@ -300,6 +300,20 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     });
   }, []);
 
+  const onSaveClick = useCallback(async () => {
+    if (!clientId || !tpl?.id) return;
+    setSaving(true);
+    try {
+      const totalScore = recommendations.reduce((s, r) => s + r.score, 0);
+      await saveClientRecord(clientId, tpl.id, answers, totalScore, recommendations);
+      alert('Guardado');
+    } catch (e: any) {
+      alert(`Error al guardar: ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  }, [clientId, tpl, answers, recommendations]);
+
   const save = useCallback(
     async (force = false) => {
       if (!clientId || !tpl) return;
@@ -428,10 +442,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           />
           <button
             className="px-3 py-1.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60"
-            onClick={() => save(true)}
-            disabled={saving}
+            onClick={onSaveClick}
+            disabled={!clientId || !tpl?.id || saving}
           >
-            {saving ? 'Guardando…' : 'Guardar cambios'}
+            {saving ? 'Guardando…' : 'Guardar ficha'}
           </button>
           <button
             className="px-3 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50"

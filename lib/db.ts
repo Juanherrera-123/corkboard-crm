@@ -38,13 +38,28 @@ export async function fetchTemplates() {
 }
 
 export async function createTemplate(name: string, fields: any[]) {
-  const { org_id, user } = await getMyProfile();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error('No hay sesión');
+
+  const { data: prof, error: pErr } = await supabase
+    .from('profiles')
+    .select('org_id')
+    .eq('user_id', user.id)
+    .single();
+  if (pErr) throw pErr;
+
+  const payload = { org_id: prof.org_id, name, fields };
+  console.debug('createTemplate payload', payload);
+
   const { data, error } = await supabase
     .from('templates')
-    .insert({ org_id, name, fields, created_by: user.id })
-    .select('id, name, fields, org_id, created_by')
+    .insert(payload)
+    .select('id, name, fields, created_at')
     .single();
-  if (error) throw new Error(error.message);
+
+  if (error) throw error;
   return data;
 }
 
@@ -175,21 +190,41 @@ function normalizeAnswersBeforeSave(
   return out;
 }
 
-export async function saveClientRecord(clientId: string, templateId: string, answers: any, score: number, matches: any[]) {
-  const { data: tpl, error: tplErr } = await supabase
+export async function saveClientRecord(
+  clientId: string,
+  templateId: string,
+  answers: Record<string, any>,
+  score: number,
+  matches: any[]
+) {
+  if (!clientId || !templateId) throw new Error('Faltan ids');
+
+  const { data: tpl, error: tErr } = await supabase
     .from('templates')
-    .select('fields')
+    .select('id, fields')
     .eq('id', templateId)
     .single();
-  if (tplErr) throw new Error(tplErr.message);
-  const normalized = normalizeAnswersBeforeSave(answers, tpl?.fields || []);
+  if (tErr) throw tErr;
 
-  const { data, error } = await supabase.from('client_records')
-    .insert({ client_id: clientId, template_id: templateId, answers: normalized, score, matches })
-    .select('id, client_id, template_id, answers, score, matches')
-    .single();
-  if (error) throw new Error(error.message);
-  return data.id as string;
+  const normalized = normalizeAnswersBeforeSave(answers, tpl.fields);
+
+  const payload = {
+    client_id: clientId,
+    template_id: templateId,
+    answers: normalized,
+    score,
+    matches: matches ?? [],
+  };
+
+  console.debug('saveClientRecord payload', payload);
+
+  const { data, error } = await supabase
+    .from('client_records')
+    .insert(payload)
+    .select('id, client_id, created_at');
+
+  if (error) throw error;
+  return data;
 }
 
 export async function fetchLatestRecord(clientId: string) {
