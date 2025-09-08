@@ -205,7 +205,6 @@ export async function saveClientRecord(
     .eq('id', templateId)
     .single();
   if (tErr) throw tErr;
-
   const normalized = normalizeAnswersBeforeSave(answers, tpl.fields);
 
   const payload = {

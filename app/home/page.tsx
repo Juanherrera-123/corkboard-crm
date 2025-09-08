@@ -224,6 +224,11 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [notes, setNotesState] = useState<Record<string, Note[]>>({});
   const lastSavedRef = useRef('');
   const [saving, setSaving] = useState(false);
+  const [autoMsg, setAutoMsg] = useState('');
+  const latestAnswers = useRef<Answers>({});
+  useEffect(() => {
+    latestAnswers.current = answers;
+  }, [answers]);
 
   const [noteField, setNoteField] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -325,8 +330,11 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         const score = recs.reduce((s, r) => s + r.score, 0);
         await saveClientRecord(clientId, tpl.id, answers, score, recs);
         lastSavedRef.current = current;
-      } catch (err) {
-        console.error(err);
+        setAutoMsg('Guardado');
+      } catch (err: any) {
+        console.error('save error', err);
+        setAutoMsg(err.message || 'Error al guardar');
+        throw err;
       } finally {
         setSaving(false);
       }
@@ -335,15 +343,24 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   );
 
   useEffect(() => {
-    const id = setInterval(() => {
-      save();
-    }, 5000);
-    return () => clearInterval(id);
-  }, [save]);
+    if (!clientId || !tpl?.id) return;
+    const h = setTimeout(async () => {
+      const current = JSON.stringify(latestAnswers.current);
+      if (current === lastSavedRef.current) return;
+      try {
+        await save();
+        setAutoMsg('Guardado automático');
+      } catch (e) {
+        console.warn('Autosave error', e);
+        setAutoMsg('No se pudo auto-guardar');
+      }
+    }, 700);
+    return () => clearTimeout(h);
+  }, [answers, clientId, tpl?.id, save]);
 
   useEffect(() => {
     const handler = () => {
-      save(true);
+      save(true).catch(() => {});
       supabase.auth.signOut().catch(() => {});
     };
     window.addEventListener('beforeunload', handler);
@@ -447,6 +464,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           >
             {saving ? 'Guardando…' : 'Guardar ficha'}
           </button>
+          {autoMsg && <span className="text-sm text-slate-600">{autoMsg}</span>}
           <button
             className="px-3 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50"
             onClick={async () => {
