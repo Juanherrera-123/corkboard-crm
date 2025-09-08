@@ -268,6 +268,42 @@ export async function addNote(clientId: string, fieldId: string, text: string) {
   return data;
 }
 
+export async function fetchClientFieldOverrides(clientId: string) {
+  const { data, error } = await supabase
+    .from('client_field_overrides')
+    .select('field_id,x,y,w,h,label,type,options,hidden')
+    .eq('client_id', clientId);
+  if (error) throw new Error(error.message);
+  const map: Record<string, any> = {};
+  (data || []).forEach((r: any) => {
+    const { field_id, ...rest } = r;
+    map[field_id] = rest;
+  });
+  return map;
+}
+
+export async function upsertClientFieldOverride(
+  clientId: string,
+  fieldId: string,
+  override: { x?: number; y?: number; w?: number; h?: number; label?: string; type?: string; options?: any; hidden?: boolean }
+) {
+  const { data, error } = await supabase
+    .from('client_field_overrides')
+    .upsert({ client_id: clientId, field_id: fieldId, ...override }, { onConflict: 'client_id,field_id' })
+    .select('field_id')
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
+}
+
+export async function hideFieldForClient(clientId: string, fieldId: string) {
+  await upsertClientFieldOverride(clientId, fieldId, { hidden: true });
+}
+
+export async function unhideFieldForClient(clientId: string, fieldId: string) {
+  await upsertClientFieldOverride(clientId, fieldId, { hidden: false });
+}
+
 export async function deleteClient(clientId: string) {
   const { error: notesError } = await supabase.from('notes').delete().eq('client_id', clientId);
   if (notesError) throw new Error(notesError.message);
