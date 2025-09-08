@@ -16,9 +16,9 @@ import {
   fetchClientFieldOverrides,
 } from '@/lib/db';
 import ModalText from '@/components/ModalText';
+import QuestionModal from '@/components/QuestionModal';
 import { subscribeClientLive } from '@/lib/realtime';
 import { computeRecommendations } from '@/lib/recommendations';
-import { uid } from '@/lib/uid';
 import { fetchClient } from '@/lib/clients';
 import type { ClientRow } from '@/lib/clients';
 import DropdownMenu from '@/components/DropdownMenu';
@@ -223,12 +223,37 @@ const FieldCard = memo(function FieldCard({
       )}
       <div className="flex items-center justify-between">
         <div className="font-semibold text-slate-800">{field.label}</div>
-        <Badge>{field.type}</Badge>
+        <div className="flex items-center gap-1">
+          <Badge>{field.type}</Badge>
+          <button
+            type="button"
+            onClick={() => onEdit(field)}
+            className="text-xs text-slate-500 hover:text-slate-800"
+          >
+            ✎
+          </button>
+        </div>
       </div>
       {Input}
     </div>
   );
 });
+
+const SortableFieldCard = (
+  props: React.ComponentProps<typeof FieldCard>,
+) => {
+  const { field } = props;
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: field.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <FieldCard {...props} />
+    </div>
+  );
+};
 
 export default function HomePage({ searchParams }: { searchParams: { client?: string } }) {
   const router = useRouter();
@@ -274,13 +299,28 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [hiddenFields, setHiddenFields] = useState<string[]>([]);
 
   const [tplMenuOpen, setTplMenuOpen] = useState(false);
-  const [addFieldOpen, setAddFieldOpen] = useState(false);
-  const [newLabel, setNewLabel] = useState('');
-  const [newType, setNewType] = useState<FieldType>('text');
-  const [newOptions, setNewOptions] = useState('');
+  const [questionModalOpen, setQuestionModalOpen] = useState(false);
+  const [editingField, setEditingField] = useState<Field | null>(null);
   const [recsOpen, setRecsOpen] = useState(true);
 
   const unsub = useRef<(() => void) | null>(null);
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+      setTpl((prev) => {
+        if (!prev) return prev;
+        const oldIndex = prev.fields.findIndex((f) => f.id === active.id);
+        const newIndex = prev.fields.findIndex((f) => f.id === over?.id);
+        const newFields = arrayMove(prev.fields, oldIndex, newIndex).map((f, idx) => ({
+          ...f,
+          y: idx + 1,
+        }));
+        return { ...prev, fields: newFields };
+      });
+      setTplDirty(true);
+    }
+  };
 
   useEffect(() => {
     if (searchParams?.client) setClientId(searchParams.client);
@@ -594,9 +634,18 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           </div>
           <button
             className="px-3 py-1.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700"
-            onClick={() => setAddFieldOpen(true)}
+            onClick={() => {
+              setEditingField(null);
+              setQuestionModalOpen(true);
+            }}
           >
             Agregar pregunta
+          </button>
+          <button
+            className="px-3 py-1.5 rounded-xl border bg-white hover:bg-slate-50"
+            onClick={() => setEditLayout((o) => !o)}
+          >
+            {editLayout ? 'Terminar orden' : 'Editar orden'}
           </button>
         </div>
       </div>
@@ -607,12 +656,16 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           style={{ ...corkBg }}
         >
           <div
-            className="grid gap-3"
-            style={{
-              gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
-              transform: `scale(${zoom})`,
-              transformOrigin: 'top left',
-            }}
+            className={editLayout ? 'space-y-3' : 'grid gap-3'}
+            style={
+              editLayout
+                ? undefined
+                : {
+                    gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
+                    transform: `scale(${zoom})`,
+                    transformOrigin: 'top left',
+                  }
+            }
           >
             {tpl?.fields
               .filter((f) => !hiddenFields.includes(f.id))
@@ -674,88 +727,55 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         }}
       />
 
-      {addFieldOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 grid place-items-center">
-          <div className="bg-white rounded-xl p-4 w-80 space-y-3">
-            <h2 className="text-lg font-semibold text-slate-800">Agregar pregunta</h2>
-            <div className="space-y-2">
-              <div className="flex flex-col gap-1">
-                <label className="text-sm text-slate-600">Label</label>
-                <input
-                  className="rounded-lg border border-slate-200 p-2"
-                  value={newLabel}
-                  onChange={(e) => setNewLabel(e.target.value)}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-sm text-slate-600">Tipo</label>
-                <select
-                  className="rounded-lg border border-slate-200 p-2"
-                  value={newType}
-                  onChange={(e) => setNewType(e.target.value as FieldType)}
-                >
-                  <option value="text">text</option>
-                  <option value="number">number</option>
-                  <option value="select">select</option>
-                  <option value="multiselect">multiselect</option>
-                  <option value="currency">currency</option>
-                  <option value="date">date</option>
-                  <option value="note">note</option>
-                </select>
-              </div>
-              {(newType === 'select' || newType === 'multiselect') && (
-                <div className="flex flex-col gap-1">
-                  <label className="text-sm text-slate-600">Opciones (separadas por coma)</label>
-                  <textarea
-                    className="rounded-lg border border-slate-200 p-2"
-                    value={newOptions}
-                    onChange={(e) => setNewOptions(e.target.value)}
-                  />
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                className="px-3 py-1.5 rounded-xl border bg-white hover:bg-slate-50"
-                onClick={() => setAddFieldOpen(false)}
-              >
-                Cancelar
-              </button>
-              <button
-                className="px-3 py-1.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700"
-                onClick={() => {
-                  if (!newLabel.trim() || !newType) {
-                    alert('Label y tipo requeridos');
-                    return;
+      <QuestionModal
+        open={questionModalOpen}
+        field={editingField}
+        onClose={() => {
+          setQuestionModalOpen(false);
+          setEditingField(null);
+        }}
+        onSubmit={(data) => {
+          if (editingField) {
+            setTpl((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    fields: prev.fields.map((f) =>
+                      f.id === data.id
+                        ? {
+                            ...f,
+                            label: data.label,
+                            type: data.type,
+                            ...(data.options
+                              ? { options: data.options }
+                              : { options: undefined }),
+                          }
+                        : f
+                    ),
                   }
-                  const id = uid();
-                  const maxY = tpl?.fields.reduce((m, f) => Math.max(m, f.y + f.h), 0) || 0;
-                  const field: Field = {
-                    id,
-                    label: newLabel.trim(),
-                    type: newType,
-                    x: 1,
-                    y: maxY + 1,
-                    w: 3,
-                    h: 2,
-                    ...(newType === 'select' || newType === 'multiselect'
-                      ? { options: newOptions.split(',').map((s) => s.trim()).filter(Boolean) }
-                      : {}),
-                  };
-                  setTpl((prev) => (prev ? { ...prev, fields: [...prev.fields, field] } : prev));
-                  setTplDirty(true);
-                  setAddFieldOpen(false);
-                  setNewLabel('');
-                  setNewType('text');
-                  setNewOptions('');
-                }}
-              >
-                Guardar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                : prev
+            );
+          } else {
+            const maxY = tpl?.fields.reduce(
+              (m, f) => Math.max(m, f.y + f.h),
+              0
+            ) || 0;
+            const field: Field = {
+              ...data,
+              x: 1,
+              y: maxY + 1,
+              w: 3,
+              h: 2,
+            };
+            setTpl((prev) =>
+              prev ? { ...prev, fields: [...prev.fields, field] } : prev
+            );
+          }
+          setTplDirty(true);
+          setQuestionModalOpen(false);
+          setEditingField(null);
+        }}
+      />
     </div>
   );
 }
