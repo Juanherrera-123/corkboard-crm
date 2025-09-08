@@ -37,14 +37,21 @@ export async function fetchTemplates() {
   return data;
 }
 
-export async function createTemplate(name: string, fields: any[]) {
+export async function createTemplate(name: string, fields: any[], id?: string) {
   const { org_id, user } = await getMyProfile();
+  const payload: any = { org_id, name, fields, created_by: user.id };
+  if (id) payload.id = id;
+  console.debug('createTemplate payload', payload);
   const { data, error } = await supabase
     .from('templates')
-    .insert({ org_id, name, fields, created_by: user.id })
+    .upsert(payload, { onConflict: 'id' })
     .select('id, name, fields, org_id, created_by')
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error('createTemplate error', error, { payload });
+    throw new Error(error.message);
+  }
+  console.debug('createTemplate result', data);
   return data;
 }
 
@@ -184,11 +191,18 @@ export async function saveClientRecord(clientId: string, templateId: string, ans
   if (tplErr) throw new Error(tplErr.message);
   const normalized = normalizeAnswersBeforeSave(answers, tpl?.fields || []);
 
-  const { data, error } = await supabase.from('client_records')
-    .insert({ client_id: clientId, template_id: templateId, answers: normalized, score, matches })
+  const payload = { client_id: clientId, template_id: templateId, answers: normalized, score, matches };
+  console.debug('saveClientRecord payload', payload);
+  const { data, error } = await supabase
+    .from('client_records')
+    .insert(payload)
     .select('id, client_id, template_id, answers, score, matches')
     .single();
-  if (error) throw new Error(error.message);
+  if (error) {
+    console.error('saveClientRecord error', error, { payload });
+    throw new Error(error.message);
+  }
+  console.debug('saveClientRecord result', data);
   return data.id as string;
 }
 
