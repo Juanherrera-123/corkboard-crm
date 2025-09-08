@@ -12,6 +12,8 @@ import {
   saveClientRecord,
   fetchLatestRecord,
   upsertTemplateFields,
+  hideFieldForClient,
+  fetchClientFieldOverrides,
 } from '@/lib/db';
 import ModalText from '@/components/ModalText';
 import QuestionModal from '@/components/QuestionModal';
@@ -19,14 +21,7 @@ import { subscribeClientLive } from '@/lib/realtime';
 import { computeRecommendations } from '@/lib/recommendations';
 import { fetchClient } from '@/lib/clients';
 import type { ClientRow } from '@/lib/clients';
-import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
-import {
-  SortableContext,
-  arrayMove,
-  verticalListSortingStrategy,
-  useSortable,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import DropdownMenu from '@/components/DropdownMenu';
 
 type FieldType =
   | 'text'
@@ -63,20 +58,33 @@ const Badge = ({ children }: { children: React.ReactNode }) => (
   <span className="px-2 py-0.5 rounded-full text-xs bg-slate-800 text-white/90">{children}</span>
 );
 
+const GripIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"
+    />
+  </svg>
+);
+
 const FieldCard = memo(function FieldCard({
   field,
   value,
   onChange,
   notes,
   onAddNote,
-  onEdit,
+  editLayout,
+  onHide,
 }: {
   field: Field;
   value: any;
   onChange: (id: string, val: any) => void;
   notes: Note[];
   onAddNote: (fieldId: string) => void;
-  onEdit: (field: Field) => void;
+  editLayout: boolean;
+  onHide: () => void;
 }) {
   const valueStr = value == null ? '' : Array.isArray(value) ? value : String(value);
 
@@ -195,6 +203,24 @@ const FieldCard = memo(function FieldCard({
       style={cardStyle}
       className="relative rounded-2xl shadow-sm border border-slate-200 bg-white/80 backdrop-blur p-3 flex flex-col gap-2"
     >
+      {editLayout && (
+        <div className="absolute -left-4 top-2">
+          <DropdownMenu
+            trigger={
+              <button className="p-1 text-slate-400 hover:text-slate-600 cursor-grab">
+                <GripIcon className="w-4 h-4" />
+              </button>
+            }
+          >
+            <button
+              className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+              onClick={onHide}
+            >
+              Ocultar en esta ficha
+            </button>
+          </DropdownMenu>
+        </div>
+      )}
       <div className="flex items-center justify-between">
         <div className="font-semibold text-slate-800">{field.label}</div>
         <div className="flex items-center gap-1">
@@ -269,6 +295,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const [noteField, setNoteField] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+  const [editLayout, setEditLayout] = useState(false);
+  const [hiddenFields, setHiddenFields] = useState<string[]>([]);
 
   const [tplMenuOpen, setTplMenuOpen] = useState(false);
   const [questionModalOpen, setQuestionModalOpen] = useState(false);
@@ -362,6 +390,18 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       return { ...prev, [id]: val };
     });
   }, []);
+  const handleHideField = useCallback(
+    async (fieldId: string) => {
+      if (!clientId) return;
+      try {
+        await hideFieldForClient(clientId, fieldId);
+        setHiddenFields((prev) => [...prev, fieldId]);
+      } catch (err: any) {
+        alert(err.message || 'Error al ocultar el campo');
+      }
+    },
+    [clientId]
+  );
   const save = useCallback(
     async (force = false) => {
       if (!clientId || !tpl) return;
@@ -459,6 +499,12 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         (byField[n.field_id] ||= []).push(n as any);
       });
       setNotesState(byField);
+      try {
+        const overrides = await fetchClientFieldOverrides(clientId);
+        setHiddenFields(overrides.filter((o: any) => o.hidden).map((o: any) => o.field_id));
+      } catch (err) {
+        console.error(err);
+      }
     })();
 
     const u = subscribeClientLive(
@@ -520,6 +566,14 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
             value={zoom}
             onChange={(e) => setZoom(Number(e.target.value))}
           />
+          <button
+            className={`px-3 py-1.5 rounded-xl border ${
+              editLayout ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-white hover:bg-slate-50'
+            }`}
+            onClick={() => setEditLayout((o) => !o)}
+          >
+            {editLayout ? 'Listo' : 'Editar layout'}
+          </button>
           <button
             className="px-3 py-1.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60"
             onClick={onSaveClick}
@@ -613,20 +667,20 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                   }
             }
           >
-            {tpl?.fields.map((f) => (
-              <FieldCard
-                key={f.id}
-                field={f}
-                value={answers[f.id]}
-                onChange={updateAnswer}
-                notes={notes[f.id] || []}
-                onAddNote={(id) => setNoteField(id)}
-                onEdit={(field) => {
-                  setEditingField(field);
-                  setQuestionModalOpen(true);
-                }}
-              />
-            ))}
+            {tpl?.fields
+              .filter((f) => !hiddenFields.includes(f.id))
+              .map((f) => (
+                <FieldCard
+                  key={f.id}
+                  field={f}
+                  value={answers[f.id]}
+                  onChange={updateAnswer}
+                  notes={notes[f.id] || []}
+                  onAddNote={(id) => setNoteField(id)}
+                  editLayout={editLayout}
+                  onHide={() => handleHideField(f.id)}
+                />
+              ))}
           </div>
           <button
             onClick={() => setRecsOpen((o) => !o)}
