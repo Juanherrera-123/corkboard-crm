@@ -268,6 +268,25 @@ export async function addNote(clientId: string, fieldId: string, text: string) {
   return data;
 }
 
+export async function fetchClientFieldOverrides(clientId: string) {
+  const { data, error } = await supabase
+    .from('client_field_overrides')
+    .select('field_id, hidden')
+    .eq('client_id', clientId);
+  if (error) throw new Error(error.message);
+  return (data as any[]) || [];
+}
+
+export async function hideFieldForClient(clientId: string, fieldId: string) {
+  const { error } = await supabase
+    .from('client_field_overrides')
+    .upsert(
+      { client_id: clientId, field_id: fieldId, hidden: true },
+      { onConflict: 'client_id,field_id' }
+    );
+  if (error) throw new Error(error.message);
+}
+
 export async function deleteClient(clientId: string) {
   const { error: notesError } = await supabase.from('notes').delete().eq('client_id', clientId);
   if (notesError) throw new Error(notesError.message);
