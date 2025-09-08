@@ -23,6 +23,14 @@ import { computeRecommendations } from '@/lib/recommendations';
 import { uid } from '@/lib/uid';
 import { fetchClient } from '@/lib/clients';
 import type { ClientRow } from '@/lib/clients';
+import { DndContext, DragEndEvent, closestCenter } from '@dnd-kit/core';
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 type FieldType =
   | 'text'
@@ -228,6 +236,22 @@ const FieldCard = memo(function FieldCard({
   );
 });
 
+const SortableFieldCard = (
+  props: React.ComponentProps<typeof FieldCard>,
+) => {
+  const { field } = props;
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: field.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+      <FieldCard {...props} />
+    </div>
+  );
+};
+
 export default function HomePage({ searchParams }: { searchParams: { client?: string } }) {
   const router = useRouter();
   // Protección de ruta: esperamos conocer la sesión antes de renderizar el dashboard
@@ -274,6 +298,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [editLayout, setEditLayout] = useState(false);
 
   const [tplMenuOpen, setTplMenuOpen] = useState(false);
+  const [editLayout, setEditLayout] = useState(false);
   const [addFieldOpen, setAddFieldOpen] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newType, setNewType] = useState<FieldType>('text');
@@ -281,6 +306,23 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [recsOpen, setRecsOpen] = useState(true);
 
   const unsub = useRef<(() => void) | null>(null);
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (active.id !== over?.id) {
+      setTpl((prev) => {
+        if (!prev) return prev;
+        const oldIndex = prev.fields.findIndex((f) => f.id === active.id);
+        const newIndex = prev.fields.findIndex((f) => f.id === over?.id);
+        const newFields = arrayMove(prev.fields, oldIndex, newIndex).map((f, idx) => ({
+          ...f,
+          y: idx + 1,
+        }));
+        return { ...prev, fields: newFields };
+      });
+      setTplDirty(true);
+    }
+  };
 
   useEffect(() => {
     if (searchParams?.client) setClientId(searchParams.client);
@@ -608,6 +650,12 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           >
             Agregar pregunta
           </button>
+          <button
+            className="px-3 py-1.5 rounded-xl border bg-white hover:bg-slate-50"
+            onClick={() => setEditLayout((o) => !o)}
+          >
+            {editLayout ? 'Terminar orden' : 'Editar orden'}
+          </button>
         </div>
       </div>
 
@@ -617,12 +665,16 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           style={{ ...corkBg }}
         >
           <div
-            className="grid gap-3"
-            style={{
-              gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
-              transform: `scale(${zoom})`,
-              transformOrigin: 'top left',
-            }}
+            className={editLayout ? 'space-y-3' : 'grid gap-3'}
+            style={
+              editLayout
+                ? undefined
+                : {
+                    gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
+                    transform: `scale(${zoom})`,
+                    transformOrigin: 'top left',
+                  }
+            }
           >
             {fields.map((f) => (
               <FieldCard
