@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { ensureProfileAndOrg } from '@/lib/bootstrap';
 
 type Mode = 'login' | 'signup';
 
@@ -22,6 +23,11 @@ export default function LoginPage() {
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!cancelled && data.session) {
+        try {
+          await ensureProfileAndOrg();
+        } catch (e) {
+          console.error(e);
+        }
         router.replace('/dashboard');
       } else if (!cancelled) {
         setReady(true);
@@ -42,6 +48,7 @@ export default function LoginPage() {
         const { data, error } = await supabase.auth.signUp({ email, password: pass });
         if (error) throw error;
         if (data.session) {
+          await ensureProfileAndOrg();
           router.replace('/dashboard');
           return;
         }
@@ -49,6 +56,7 @@ export default function LoginPage() {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
         if (error) throw error;
         if (data.session) {
+          await ensureProfileAndOrg();
           router.replace('/dashboard');
           return;
         }
