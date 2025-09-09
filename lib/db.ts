@@ -196,6 +196,10 @@ export async function upsertTemplateFields(templateId: string, fields: any[]) {
   return data;
 }
 
+export async function updateTemplateFields(templateId: string, fields: any[]) {
+  return upsertTemplateFields(templateId, fields);
+}
+
 export async function saveClientRecord(
   clientId: string,
   templateId: string,

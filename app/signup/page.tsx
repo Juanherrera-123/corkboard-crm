@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import { ensureProfileAndOrg } from '@/lib/bootstrap';
 
 export default function Signup() {
   const router = useRouter();
@@ -21,7 +22,10 @@ export default function Signup() {
     const { data, error: inErr } = await supabase.auth.signInWithPassword({ email, password: pass });
     if (inErr) return setMsg('❌ ' + inErr.message);
 
-    if (data.session) router.replace('/dashboard');
+    if (data.session) {
+      await ensureProfileAndOrg();
+      router.replace('/dashboard');
+    }
   }
 
   return (
