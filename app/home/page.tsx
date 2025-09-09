@@ -13,8 +13,7 @@ import {
   fetchLatestRecord,
   hideFieldForClient,
   fetchClientFieldOverrides,
-  fetchClientLayout,
-  saveClientLayout,
+  upsertClientFieldLayout,
 } from '@/lib/db';
 import ModalText from '@/components/ModalText';
 import QuestionModal from '@/components/QuestionModal';
@@ -268,7 +267,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [tpl, setTpl] = useState<Template | null>(null);
-  const [tplDirty, setTplDirty] = useState(false);
 
   const [clientId, setClientId] = useState<string>('');
   const [client, setClient] = useState<ClientRow | null>(null);
@@ -329,7 +327,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       setTemplates(sorted as any);
       if (sorted.length) {
         setTpl(sorted[0] as any);
-        setTplDirty(false);
       }
     })();
   }, []);
@@ -347,7 +344,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           const t = templates.find((t) => t.id === rec.template_id);
           if (t) {
             setTpl(sortTplFields(t as any));
-            setTplDirty(false);
           }
         }
       } catch (err) {
@@ -360,15 +356,24 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     if (!clientId || !tpl?.id) return;
     (async () => {
       try {
-        const layout = await fetchClientLayout(clientId);
-        if (layout.length) {
+        const overrides = await fetchClientFieldOverrides(clientId);
+        setHiddenFields(overrides.filter((o: any) => o.hidden).map((o: any) => o.field_id));
+        if (overrides.length) {
           setTpl((prev) =>
             prev
               ? {
                   ...prev,
                   fields: prev.fields.map((f) => {
-                    const l = layout.find((i: any) => i.id === f.id);
-                    return l ? { ...f, x: l.x, y: l.y, w: l.w, h: l.h } : f;
+                    const ov = overrides.find((o: any) => o.field_id === f.id);
+                    return ov
+                      ? {
+                          ...f,
+                          x: ov.x ?? f.x,
+                          y: ov.y ?? f.y,
+                          w: ov.w ?? f.w,
+                          h: ov.h ?? f.h,
+                        }
+                      : f;
                   }),
                 }
               : prev,
@@ -412,22 +417,14 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     async (force = false) => {
       if (!clientId || !tpl) return;
       const current = JSON.stringify(answers);
-      if (!force && current === lastSavedRef.current && !tplDirty) return;
+      if (!force && current === lastSavedRef.current) return;
       setSaving(true);
       console.debug('Saving...', {
-        tplDirty,
         tplId: tpl?.id,
         fieldsCount: tpl?.fields.length,
         answersKeys: Object.keys(answers).length,
       });
       try {
-        if (tplDirty && clientId) {
-          const sortedFields = tpl.fields.slice().sort((a, b) => a.y - b.y);
-          const layout = sortedFields.map(({ id, x, y, w, h }) => ({ id, x, y, w, h }));
-          await saveClientLayout(clientId, layout);
-          setTpl((prev) => (prev ? { ...prev, fields: sortedFields } : prev));
-          setTplDirty(false);
-        }
         const recs = computeRecommendations(answers, labelMap);
         const score = recs.reduce((s, r) => s + r.score, 0);
         await saveClientRecord(clientId, tpl.id, answers, score, recs, tpl.fields);
@@ -441,7 +438,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         setSaving(false);
       }
     },
-    [clientId, tpl, tplDirty, answers, labelMap]
+    [clientId, tpl, answers, labelMap]
   );
 
   const onSaveClick = useCallback(async () => {
@@ -453,28 +450,35 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     }
   }, [save]);
 
-  const handleLayoutChange = useCallback(
-    (layout: Layout[]) => {
-      setTpl((prev) => {
-        if (!prev) return prev;
-        const map = Object.fromEntries(layout.map((l) => [l.i, l]));
-        const newFields = prev.fields.map((f) => {
-          const l = map[f.id];
-          return l ? { ...f, x: l.x, y: l.y, w: l.w, h: l.h } : f;
-        });
-        return { ...prev, fields: newFields };
+  const handleLayoutChange = useCallback((layout: Layout[]) => {
+    setTpl((prev) => {
+      if (!prev) return prev;
+      const map = Object.fromEntries(layout.map((l) => [l.i, l]));
+      const newFields = prev.fields.map((f) => {
+        const l = map[f.id];
+        return l ? { ...f, x: l.x, y: l.y, w: l.w, h: l.h } : f;
       });
-      setTplDirty(true);
-      save();
+      return { ...prev, fields: newFields };
+    });
+  }, []);
+
+  const commitLayout = useCallback(
+    async (_: Layout[], __: Layout, item: Layout) => {
+      if (!clientId) return;
+      try {
+        await upsertClientFieldLayout(clientId, item.i, item.x, item.y, item.w, item.h);
+      } catch (err) {
+        console.error(err);
+      }
     },
-    [save],
+    [clientId],
   );
 
   useEffect(() => {
     if (!clientId || !tpl?.id) return;
     const h = setTimeout(async () => {
       const current = JSON.stringify(latestAnswers.current);
-      if (current === lastSavedRef.current && !tplDirty) return;
+      if (current === lastSavedRef.current) return;
       try {
         await save();
         setAutoMsg('Guardado automático');
@@ -484,7 +488,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       }
     }, 700);
     return () => clearTimeout(h);
-  }, [answers, clientId, tpl?.id, tplDirty, save]);
+  }, [answers, clientId, tpl?.id, save]);
 
   useEffect(() => {
     const handler = () => {
@@ -524,12 +528,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         (byField[n.field_id] ||= []).push(n as any);
       });
       setNotesState(byField);
-      try {
-        const overrides = await fetchClientFieldOverrides(clientId);
-        setHiddenFields(overrides.filter((o: any) => o.hidden).map((o: any) => o.field_id));
-      } catch (err) {
-        console.error(err);
-      }
     })();
 
     const u = subscribeClientLive(
@@ -646,7 +644,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                     key={t.id}
                     onClick={() => {
                       setTpl(sortTplFields(t as any));
-                      setTplDirty(false);
                       setTplMenuOpen(false);
                     }}
                     className="block w-full text-left px-3 py-2 hover:bg-slate-50"
@@ -691,6 +688,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
               isDraggable={editLayout}
               isResizable={editLayout}
               onLayoutChange={handleLayoutChange}
+              onDragStop={commitLayout}
+              onResizeStop={commitLayout}
               draggableHandle=".drag-handle"
               compactType={null}
               margin={[12, 12]}
@@ -800,7 +799,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
               prev ? { ...prev, fields: [...prev.fields, field] } : prev
             );
           }
-          setTplDirty(true);
           setQuestionModalOpen(false);
           setEditingField(null);
         }}
