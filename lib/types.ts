@@ -1,3 +1,4 @@
+export { gridCols, DEFAULT_W, DEFAULT_H, minW, maxW, minH, maxH } from './layout';
 export type FieldType = 'text' | 'number' | 'currency' | 'select' | 'multiselect' | 'note' | 'date';
 
 export type Field = {
@@ -7,9 +8,9 @@ export type Field = {
   options?: string[];
   x: number;
   y: number;
-  /** Width in grid columns. Defaults to 4. */
+  /** Width in grid columns. Defaults to DEFAULT_W. */
   w?: number;
-  /** Height in grid rows. Defaults to 3. */
+  /** Height in grid rows. Defaults to DEFAULT_H. */
   h?: number;
 };
 

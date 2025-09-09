@@ -25,6 +25,15 @@ import DropdownMenu from '@/components/DropdownMenu';
 import GridLayout, { WidthProvider, type Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
+import {
+  gridCols,
+  DEFAULT_W,
+  DEFAULT_H,
+  minW,
+  maxW,
+  minH,
+  maxH,
+} from '@/lib/layout';
 
 const ReactGridLayout = WidthProvider(GridLayout);
 
@@ -58,15 +67,6 @@ type Template = {
 
 type Answers = Record<string, any>;
 type Note = { id: string; field_id: string; text: string; created_at?: string; created_by?: string };
-
-const gridCols = 10;
-
-const DEFAULT_W = 4;
-const DEFAULT_H = 3;
-const minW = 2;
-const maxW = gridCols;
-const minH = 2;
-const maxH = 8;
 
 const sortTplFields = (tpl: Template): Template => ({
   ...tpl,
