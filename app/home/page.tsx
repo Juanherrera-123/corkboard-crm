@@ -22,6 +22,9 @@ import { computeRecommendations } from '@/lib/recommendations';
 import { fetchClient } from '@/lib/clients';
 import type { ClientRow } from '@/lib/clients';
 import DropdownMenu from '@/components/DropdownMenu';
+import { DndContext, DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, arrayMove, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 type FieldType =
   | 'text'
@@ -77,6 +80,7 @@ const FieldCard = memo(function FieldCard({
   onAddNote,
   editLayout,
   onHide,
+  onEdit,
 }: {
   field: Field;
   value: any;
@@ -85,6 +89,7 @@ const FieldCard = memo(function FieldCard({
   onAddNote: (fieldId: string) => void;
   editLayout: boolean;
   onHide: () => void;
+  onEdit: (field: Field) => void;
 }) {
   const valueStr = value == null ? '' : Array.isArray(value) ? value : String(value);
 
@@ -297,6 +302,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [zoom, setZoom] = useState(1);
   const [editLayout, setEditLayout] = useState(false);
   const [hiddenFields, setHiddenFields] = useState<string[]>([]);
+  const visibleFields = useMemo(
+    () => tpl?.fields.filter((f) => !hiddenFields.includes(f.id)) || [],
+    [tpl?.fields, hiddenFields],
+  );
 
   const [tplMenuOpen, setTplMenuOpen] = useState(false);
   const [questionModalOpen, setQuestionModalOpen] = useState(false);
@@ -313,7 +322,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         const oldIndex = prev.fields.findIndex((f) => f.id === active.id);
         const newIndex = prev.fields.findIndex((f) => f.id === over?.id);
         let nextY = 1;
-        const newFields = arrayMove(prev.fields, oldIndex, newIndex).map((f) => {
+        const newFields = arrayMove<Field>(prev.fields, oldIndex, newIndex).map((f: Field) => {
           const updated = { ...f, y: nextY };
           nextY += f.h;
           return updated;
@@ -657,33 +666,36 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           className={`${recsOpen ? 'col-span-9' : 'col-span-12'} relative rounded-3xl p-4 border border-slate-200 shadow-sm transition-all duration-300`}
           style={{ ...corkBg }}
         >
-          <div
-            className={editLayout ? 'space-y-3' : 'grid gap-3'}
-            style={
-              editLayout
-                ? undefined
-                : {
-                    gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
-                    transform: `scale(${zoom})`,
-                    transformOrigin: 'top left',
-                  }
-            }
-          >
-            {tpl?.fields
-              .filter((f) => !hiddenFields.includes(f.id))
-              .map((f) => (
-                <FieldCard
-                  key={f.id}
-                  field={f}
-                  value={answers[f.id]}
-                  onChange={updateAnswer}
-                  notes={notes[f.id] || []}
-                  onAddNote={(id) => setNoteField(id)}
-                  editLayout={editLayout}
-                  onHide={() => handleHideField(f.id)}
-                />
-              ))}
-          </div>
+          <DndContext onDragEnd={handleDragEnd}>
+            <SortableContext items={visibleFields.map((f) => f.id)}>
+              <div
+                className={editLayout ? 'space-y-3' : 'grid gap-3'}
+                style={
+                  editLayout
+                    ? undefined
+                    : {
+                        gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
+                        transform: `scale(${zoom})`,
+                        transformOrigin: 'top left',
+                      }
+                }
+              >
+                {visibleFields.map((f) => (
+                  <SortableFieldCard
+                    key={f.id}
+                    field={f}
+                    value={answers[f.id]}
+                    onChange={updateAnswer}
+                    notes={notes[f.id] || []}
+                    onAddNote={(id) => setNoteField(id)}
+                    editLayout={editLayout}
+                    onHide={() => handleHideField(f.id)}
+                    onEdit={setEditingField}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
           <button
             onClick={() => setRecsOpen((o) => !o)}
             className="absolute top-4 -right-4 w-8 h-8 rounded-full shadow bg-white flex items-center justify-center"
