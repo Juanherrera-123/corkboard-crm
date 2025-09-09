@@ -11,9 +11,10 @@ import {
   deleteClient,
   saveClientRecord,
   fetchLatestRecord,
-  upsertTemplateFields,
   hideFieldForClient,
   fetchClientFieldOverrides,
+  fetchClientLayout,
+  saveClientLayout,
 } from '@/lib/db';
 import ModalText from '@/components/ModalText';
 import QuestionModal from '@/components/QuestionModal';
@@ -355,6 +356,30 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     })();
   }, [clientId, templates]);
 
+  useEffect(() => {
+    if (!clientId || !tpl?.id) return;
+    (async () => {
+      try {
+        const layout = await fetchClientLayout(clientId);
+        if (layout.length) {
+          setTpl((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  fields: prev.fields.map((f) => {
+                    const l = layout.find((i: any) => i.id === f.id);
+                    return l ? { ...f, x: l.x, y: l.y, w: l.w, h: l.h } : f;
+                  }),
+                }
+              : prev,
+          );
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    })();
+  }, [clientId, tpl?.id]);
+
   const labelMap = useMemo(() => {
     const map: Record<string, string> = {};
     tpl?.fields.forEach((f) => {
@@ -396,10 +421,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         answersKeys: Object.keys(answers).length,
       });
       try {
-        if (tplDirty) {
+        if (tplDirty && clientId) {
           const sortedFields = tpl.fields.slice().sort((a, b) => a.y - b.y);
-          const data = await upsertTemplateFields(tpl.id, sortedFields);
-          console.debug('Template fields updated:', data?.id, (data?.fields || []).length);
+          const layout = sortedFields.map(({ id, x, y, w, h }) => ({ id, x, y, w, h }));
+          await saveClientLayout(clientId, layout);
           setTpl((prev) => (prev ? { ...prev, fields: sortedFields } : prev));
           setTplDirty(false);
         }

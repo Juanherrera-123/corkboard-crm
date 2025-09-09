@@ -205,6 +205,26 @@ export async function updateTemplateFields(templateId: string, fields: any[]) {
   return upsertTemplateFields(templateId, fields);
 }
 
+export async function fetchClientLayout(clientId: string) {
+  const { data, error } = await supabase
+    .from('client_layouts')
+    .select('layout')
+    .eq('client_id', clientId)
+    .single();
+  if (error && error.code !== 'PGRST116') throw new Error(error.message);
+  return (data?.layout as any[]) || [];
+}
+
+export async function saveClientLayout(
+  clientId: string,
+  layout: { id: string; x: number; y: number; w: number; h: number }[],
+) {
+  const { error } = await supabase
+    .from('client_layouts')
+    .upsert({ client_id: clientId, layout }, { onConflict: 'client_id' });
+  if (error) throw new Error(error.message);
+}
+
 export async function saveClientRecord(
   clientId: string,
   templateId: string,
