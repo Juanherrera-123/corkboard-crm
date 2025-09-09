@@ -12,6 +12,10 @@ import {
   saveClientRecord,
   fetchLatestRecord,
   upsertTemplateFields,
+  fetchClientFieldOverrides,
+  upsertClientFieldOverride,
+  hideFieldForClient,
+  unhideFieldForClient,
 } from '@/lib/db';
 import ModalText from '@/components/ModalText';
 import { subscribeClientLive } from '@/lib/realtime';
@@ -61,12 +65,18 @@ const FieldCard = memo(function FieldCard({
   onChange,
   notes,
   onAddNote,
+  editing = false,
+  onHide,
+  onDragEnd,
 }: {
   field: Field;
   value: any;
   onChange: (id: string, val: any) => void;
   notes: Note[];
   onAddNote: (fieldId: string) => void;
+  editing?: boolean;
+  onHide?: (id: string) => void;
+  onDragEnd?: (id: string, pos: { x: number; y: number; w: number; h: number }) => void;
 }) {
   const valueStr = value == null ? '' : Array.isArray(value) ? value : String(value);
 
@@ -182,12 +192,36 @@ const FieldCard = memo(function FieldCard({
 
   return (
     <div
+      draggable={editing}
+      onDragEnd={(e) => {
+        if (!editing || !onDragEnd) return;
+        const parent = e.currentTarget.parentElement;
+        if (!parent) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const parentRect = parent.getBoundingClientRect();
+        const colW = parentRect.width / gridCols;
+        const rowH = colW;
+        const x = Math.max(1, Math.round((rect.left - parentRect.left) / colW) + 1);
+        const y = Math.max(1, Math.round((rect.top - parentRect.top) / rowH) + 1);
+        onDragEnd(field.id, { x, y, w: field.w, h: field.h });
+      }}
       style={cardStyle}
       className="relative rounded-2xl shadow-sm border border-slate-200 bg-white/80 backdrop-blur p-3 flex flex-col gap-2"
     >
       <div className="flex items-center justify-between">
         <div className="font-semibold text-slate-800">{field.label}</div>
-        <Badge>{field.type}</Badge>
+        <div className="flex items-center gap-2">
+          <Badge>{field.type}</Badge>
+          {editing && onHide && (
+            <button
+              type="button"
+              className="text-xs text-red-500 hover:underline"
+              onClick={() => onHide(field.id)}
+            >
+              Ocultar
+            </button>
+          )}
+        </div>
       </div>
       {Input}
     </div>
@@ -222,6 +256,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [clientId, setClientId] = useState<string>('');
   const [client, setClient] = useState<ClientRow | null>(null);
 
+  const [overrides, setOverrides] = useState<Record<string, any>>({});
+
   const [answers, setAnswers] = useState<Answers>({});
   const [notes, setNotesState] = useState<Record<string, Note[]>>({});
   const lastSavedRef = useRef('');
@@ -234,6 +270,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const [noteField, setNoteField] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+
+  const [editingLayout, setEditingLayout] = useState(false);
 
   const [tplMenuOpen, setTplMenuOpen] = useState(false);
   const [addFieldOpen, setAddFieldOpen] = useState(false);
@@ -259,6 +297,21 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         setClient(c);
       } catch {
         setClient(null);
+      }
+    })();
+  }, [clientId]);
+
+  useEffect(() => {
+    if (!clientId) {
+      setOverrides({});
+      return;
+    }
+    (async () => {
+      try {
+        const o = await fetchClientFieldOverrides(clientId);
+        setOverrides(o);
+      } catch {
+        setOverrides({});
       }
     })();
   }, [clientId]);
@@ -296,13 +349,28 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     })();
   }, [clientId, templates]);
 
+  const fields = useMemo(() => {
+    if (!tpl) return [] as Field[];
+    return tpl.fields.reduce<Field[]>((arr, f) => {
+      const o = overrides[f.id];
+      if (o?.hidden) return arr;
+      arr.push({ ...f, ...o });
+      return arr;
+    }, []);
+  }, [tpl, overrides]);
+
+  const hiddenFields = useMemo<Field[]>(() => {
+    if (!tpl) return [];
+    return tpl.fields.filter((f) => overrides[f.id]?.hidden);
+  }, [tpl, overrides]);
+
   const labelMap = useMemo(() => {
     const map: Record<string, string> = {};
-    tpl?.fields.forEach((f) => {
+    fields.forEach((f) => {
       map[f.label.trim()] = f.id;
     });
     return map;
-  }, [tpl]);
+  }, [fields]);
 
   const recommendations = useMemo(() => computeRecommendations(answers, labelMap), [answers, labelMap]);
 
@@ -321,7 +389,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       console.debug('Saving...', {
         tplDirty,
         tplId: tpl?.id,
-        fieldsCount: tpl?.fields.length,
+        fieldsCount: fields.length,
         answersKeys: Object.keys(answers).length,
       });
       try {
@@ -332,7 +400,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         }
         const recs = computeRecommendations(answers, labelMap);
         const score = recs.reduce((s, r) => s + r.score, 0);
-        await saveClientRecord(clientId, tpl.id, answers, score, recs, tpl.fields);
+        await saveClientRecord(clientId, tpl.id, answers, score, recs, fields);
         lastSavedRef.current = current;
         setAutoMsg('Guardado');
       } catch (err: any) {
@@ -343,7 +411,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         setSaving(false);
       }
     },
-    [clientId, tpl, tplDirty, answers, labelMap]
+    [clientId, tpl, tplDirty, answers, labelMap, fields]
   );
 
   const onSaveClick = useCallback(async () => {
@@ -471,6 +539,12 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
             onChange={(e) => setZoom(Number(e.target.value))}
           />
           <button
+            className="px-3 py-1.5 rounded-xl border bg-white hover:bg-slate-50"
+            onClick={() => setEditingLayout((e) => !e)}
+          >
+            {editingLayout ? 'Terminar edición' : 'Editar layout'}
+          </button>
+          <button
             className="px-3 py-1.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60"
             onClick={onSaveClick}
             disabled={!clientId || !tpl?.id || saving}
@@ -550,7 +624,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
               transformOrigin: 'top left',
             }}
           >
-            {tpl?.fields.map((f) => (
+            {fields.map((f) => (
               <FieldCard
                 key={f.id}
                 field={f}
@@ -558,9 +632,44 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                 onChange={updateAnswer}
                 notes={notes[f.id] || []}
                 onAddNote={(id) => setNoteField(id)}
+                editing={editingLayout}
+                onHide={async (id) => {
+                  if (!clientId) return;
+                  await hideFieldForClient(clientId, id);
+                  setOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), hidden: true } }));
+                }}
+                onDragEnd={async (id, pos) => {
+                  if (!clientId) return;
+                  setOverrides((prev) => ({ ...prev, [id]: { ...(prev[id] || {}), ...pos } }));
+                  try {
+                    await upsertClientFieldOverride(clientId, id, pos);
+                  } catch (err) {
+                    console.error(err);
+                  }
+                }}
               />
             ))}
           </div>
+          {hiddenFields.length > 0 && (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {hiddenFields.map((hf) => (
+                <button
+                  key={hf.id}
+                  className="text-xs px-2 py-1 rounded border bg-white"
+                  onClick={async () => {
+                    if (!clientId) return;
+                    await unhideFieldForClient(clientId, hf.id);
+                    setOverrides((prev) => ({
+                      ...prev,
+                      [hf.id]: { ...(prev[hf.id] || {}), hidden: false },
+                    }));
+                  }}
+                >
+                  Restaurar {hf.label}
+                </button>
+              ))}
+            </div>
+          )}
           <button
             onClick={() => setRecsOpen((o) => !o)}
             className="absolute top-4 -right-4 w-8 h-8 rounded-full shadow bg-white flex items-center justify-center"
