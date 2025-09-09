@@ -205,25 +205,6 @@ export async function updateTemplateFields(templateId: string, fields: any[]) {
   return upsertTemplateFields(templateId, fields);
 }
 
-export async function fetchClientLayout(clientId: string) {
-  const { data, error } = await supabase
-    .from('client_layouts')
-    .select('layout')
-    .eq('client_id', clientId)
-    .single();
-  if (error && error.code !== 'PGRST116') throw new Error(error.message);
-  return (data?.layout as any[]) || [];
-}
-
-export async function saveClientLayout(
-  clientId: string,
-  layout: { id: string; x: number; y: number; w: number; h: number }[],
-) {
-  const { error } = await supabase
-    .from('client_layouts')
-    .upsert({ client_id: clientId, layout }, { onConflict: 'client_id' });
-  if (error) throw new Error(error.message);
-}
 
 export async function saveClientRecord(
   clientId: string,
@@ -300,7 +281,7 @@ export async function addNote(clientId: string, fieldId: string, text: string) {
 export async function fetchClientFieldOverrides(clientId: string) {
   const { data, error } = await supabase
     .from('client_field_overrides')
-    .select('field_id, hidden')
+    .select('field_id, hidden, x, y, w, h')
     .eq('client_id', clientId);
   if (error) throw new Error(error.message);
   return (data as any[]) || [];
@@ -310,8 +291,25 @@ export async function hideFieldForClient(clientId: string, fieldId: string) {
   const { error } = await supabase
     .from('client_field_overrides')
     .upsert(
-      { client_id: clientId, field_id: fieldId, hidden: true },
+      { client_id: clientId, field_id: fieldId, hidden: true, x: null, y: null, w: null, h: null },
       { onConflict: 'client_id,field_id' }
+    );
+  if (error) throw new Error(error.message);
+}
+
+export async function upsertClientFieldLayout(
+  clientId: string,
+  fieldId: string,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+) {
+  const { error } = await supabase
+    .from('client_field_overrides')
+    .upsert(
+      { client_id: clientId, field_id: fieldId, x, y, w, h },
+      { onConflict: 'client_id,field_id' },
     );
   if (error) throw new Error(error.message);
 }
