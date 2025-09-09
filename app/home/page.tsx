@@ -73,6 +73,58 @@ const sortTplFields = (tpl: Template): Template => ({
   fields: tpl.fields.slice().sort((a, b) => a.y - b.y),
 });
 
+type LayoutItem = Layout;
+
+/**
+ * Normalize layout items by sorting them visually (top-to-bottom, left-to-right)
+ * and reassigning `x`/`y` coordinates to remove gaps and overlaps.
+ *
+ * This ensures a deterministic layout order regardless of how items were moved
+ * around during editing. The algorithm greedily places each item in the first
+ * available spot scanning rows left-to-right.
+ */
+const normalizeLayout = (items: LayoutItem[], cols: number): LayoutItem[] => {
+  const sorted = items.slice().sort((a, b) => (a.y - b.y) || (a.x - b.x));
+  const occupied: boolean[][] = [];
+
+  const canPlace = (x: number, y: number, w: number, h: number) => {
+    for (let yy = y; yy < y + h; yy++) {
+      for (let xx = x; xx < x + w; xx++) {
+        if (occupied[yy]?.[xx]) return false;
+      }
+    }
+    return true;
+  };
+
+  const occupy = (x: number, y: number, w: number, h: number) => {
+    for (let yy = y; yy < y + h; yy++) {
+      if (!occupied[yy]) occupied[yy] = [];
+      for (let xx = x; xx < x + w; xx++) {
+        occupied[yy][xx] = true;
+      }
+    }
+  };
+
+  return sorted.map((item) => {
+    const w = item.w ?? 1;
+    const h = item.h ?? 1;
+    let x = 0;
+    let y = 0;
+    while (true) {
+      if (x + w > cols) {
+        x = 0;
+        y += 1;
+        continue;
+      }
+      if (canPlace(x, y, w, h)) {
+        occupy(x, y, w, h);
+        return { ...item, x, y };
+      }
+      x += 1;
+    }
+  });
+};
+
 const Badge = ({ children }: { children: React.ReactNode }) => (
   <span className="px-2 py-0.5 rounded-full text-xs bg-slate-800 text-white/90">{children}</span>
 );
@@ -294,6 +346,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [zoom, setZoom] = useState(1);
   const [editLayout, setEditLayout] = useState(false);
   const [hiddenFields, setHiddenFields] = useState<string[]>([]);
+  // Preference for grid compaction. Set to `null` to disable and skip normalization.
+  const [compactType] = useState<'vertical' | null>('vertical');
   const visibleFields = useMemo(
     () => tpl?.fields.filter((f) => !hiddenFields.includes(f.id)) || [],
     [tpl?.fields, hiddenFields],
@@ -470,17 +524,21 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     }
   }, [save]);
 
-  const handleLayoutChange = useCallback((layout: Layout[]) => {
-    setTpl((prev) => {
-      if (!prev) return prev;
-      const map = Object.fromEntries(layout.map((l) => [l.i, l]));
-      const newFields = prev.fields.map((f) => {
-        const l = map[f.id];
-        return l ? { ...f, x: l.x, y: l.y, w: l.w, h: l.h } : f;
+  const handleLayoutChange = useCallback(
+    (layout: Layout[]) => {
+      const normalized = compactType ? normalizeLayout(layout, gridCols) : layout;
+      setTpl((prev) => {
+        if (!prev) return prev;
+        const map = Object.fromEntries(normalized.map((l) => [l.i, l]));
+        const newFields = prev.fields.map((f) => {
+          const l = map[f.id];
+          return l ? { ...f, x: l.x, y: l.y, w: l.w, h: l.h } : f;
+        });
+        return { ...prev, fields: newFields };
       });
-      return { ...prev, fields: newFields };
-    });
-  }, []);
+    },
+    [compactType],
+  );
 
   const commitLayout = useCallback(
     async (_: Layout[], __: Layout, item: Layout) => {
@@ -711,7 +769,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
               onDragStop={commitLayout}
               onResizeStop={commitLayout}
               draggableHandle=".drag-handle"
-              compactType={null}
+              compactType={compactType}
               margin={[12, 12]}
             >
               {visibleFields.map((f) => (
