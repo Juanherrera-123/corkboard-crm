@@ -641,16 +641,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           >
             Agregar pregunta
           </button>
-          <button
-            className="px-3 py-1.5 rounded-xl border bg-white hover:bg-slate-50"
-            onClick={() => setEditLayout((o) => !o)}
-          >
-            {editLayout ? 'Terminar orden' : 'Editar orden'}
-          </button>
+          </div>
         </div>
-      </div>
 
-      <div className="mx-auto max-w-[1400px] px-4 py-6 grid grid-cols-12 gap-4">
+        <div className="mx-auto max-w-[1400px] px-4 py-6 grid grid-cols-12 gap-4">
         <div
           className={`${recsOpen ? 'col-span-9' : 'col-span-12'} relative rounded-3xl p-4 border border-slate-200 shadow-sm transition-all duration-300`}
           style={{ ...corkBg }}
