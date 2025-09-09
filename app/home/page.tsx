@@ -312,10 +312,12 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         if (!prev) return prev;
         const oldIndex = prev.fields.findIndex((f) => f.id === active.id);
         const newIndex = prev.fields.findIndex((f) => f.id === over?.id);
-        const newFields = arrayMove(prev.fields, oldIndex, newIndex).map((f, idx) => ({
-          ...f,
-          y: idx + 1,
-        }));
+        let nextY = 1;
+        const newFields = arrayMove(prev.fields, oldIndex, newIndex).map((f) => {
+          const updated = { ...f, y: nextY };
+          nextY += f.h;
+          return updated;
+        });
         return { ...prev, fields: newFields };
       });
       setTplDirty(true);
