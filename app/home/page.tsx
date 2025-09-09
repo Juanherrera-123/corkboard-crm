@@ -57,6 +57,11 @@ type Note = { id: string; field_id: string; text: string; created_at?: string; c
 
 const gridCols = 10;
 
+const sortTplFields = (tpl: Template): Template => ({
+  ...tpl,
+  fields: tpl.fields.slice().sort((a, b) => a.y - b.y),
+});
+
 const Badge = ({ children }: { children: React.ReactNode }) => (
   <span className="px-2 py-0.5 rounded-full text-xs bg-slate-800 text-white/90">{children}</span>
 );
@@ -314,24 +319,30 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const unsub = useRef<(() => void) | null>(null);
 
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (active.id !== over?.id) {
-      setTpl((prev) => {
-        if (!prev) return prev;
-        const oldIndex = prev.fields.findIndex((f) => f.id === active.id);
-        const newIndex = prev.fields.findIndex((f) => f.id === over?.id);
-        let nextY = 1;
-        const newFields = arrayMove<Field>(prev.fields, oldIndex, newIndex).map((f: Field) => {
-          const updated = { ...f, y: nextY };
-          nextY += f.h;
-          return updated;
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (active.id !== over?.id) {
+        setTpl((prev) => {
+          if (!prev) return prev;
+          const oldIndex = prev.fields.findIndex((f) => f.id === active.id);
+          const newIndex = prev.fields.findIndex((f) => f.id === over?.id);
+          let nextY = 1;
+          const newFields = arrayMove<Field>(prev.fields, oldIndex, newIndex).map(
+            (f: Field) => {
+              const updated = { ...f, y: nextY };
+              nextY += f.h;
+              return updated;
+            },
+          );
+          return { ...prev, fields: newFields };
         });
-        return { ...prev, fields: newFields };
-      });
-      setTplDirty(true);
-    }
-  };
+        setTplDirty(true);
+        save();
+      }
+    },
+    [save],
+  );
 
   useEffect(() => {
     if (searchParams?.client) setClientId(searchParams.client);
@@ -355,9 +366,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   useEffect(() => {
     (async () => {
       const list = await fetchTemplates();
-      setTemplates(list as any);
-      if (list.length) {
-        setTpl(list[0] as any);
+      const sorted = (list as any).map((t: any) => sortTplFields(t));
+      setTemplates(sorted as any);
+      if (sorted.length) {
+        setTpl(sorted[0] as any);
         setTplDirty(false);
       }
     })();
@@ -375,7 +387,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         if (rec?.template_id) {
           const t = templates.find((t) => t.id === rec.template_id);
           if (t) {
-            setTpl(t as any);
+            setTpl(sortTplFields(t as any));
             setTplDirty(false);
           }
         }
@@ -427,8 +439,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       });
       try {
         if (tplDirty) {
-          const data = await upsertTemplateFields(tpl.id, tpl.fields);
+          const sortedFields = tpl.fields.slice().sort((a, b) => a.y - b.y);
+          const data = await upsertTemplateFields(tpl.id, sortedFields);
           console.debug('Template fields updated:', data?.id, (data?.fields || []).length);
+          setTpl((prev) => (prev ? { ...prev, fields: sortedFields } : prev));
           setTplDirty(false);
         }
         const recs = computeRecommendations(answers, labelMap);
@@ -631,7 +645,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                   <button
                     key={t.id}
                     onClick={() => {
-                      setTpl(t as any);
+                      setTpl(sortTplFields(t as any));
                       setTplDirty(false);
                       setTplMenuOpen(false);
                     }}
