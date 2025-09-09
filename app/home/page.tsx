@@ -319,31 +319,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const unsub = useRef<(() => void) | null>(null);
 
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (active.id !== over?.id) {
-        setTpl((prev) => {
-          if (!prev) return prev;
-          const oldIndex = prev.fields.findIndex((f) => f.id === active.id);
-          const newIndex = prev.fields.findIndex((f) => f.id === over?.id);
-          let nextY = 1;
-          const newFields = arrayMove<Field>(prev.fields, oldIndex, newIndex).map(
-            (f: Field) => {
-              const updated = { ...f, y: nextY };
-              nextY += f.h;
-              return updated;
-            },
-          );
-          return { ...prev, fields: newFields };
-        });
-        setTplDirty(true);
-        save();
-      }
-    },
-    [save],
-  );
-
   useEffect(() => {
     if (searchParams?.client) setClientId(searchParams.client);
   }, [searchParams?.client]);
@@ -469,6 +444,31 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       alert(`Error al guardar: ${e.message}`);
     }
   }, [save]);
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (active.id !== over?.id) {
+        setTpl((prev) => {
+          if (!prev) return prev;
+          const oldIndex = prev.fields.findIndex((f) => f.id === active.id);
+          const newIndex = prev.fields.findIndex((f) => f.id === over?.id);
+          let nextY = 1;
+          const newFields = arrayMove<Field>(prev.fields, oldIndex, newIndex).map(
+            (f: Field) => {
+              const updated = { ...f, y: nextY };
+              nextY += f.h;
+              return updated;
+            },
+          );
+          return { ...prev, fields: newFields };
+        });
+        setTplDirty(true);
+        save();
+      }
+    },
+    [save],
+  );
 
   useEffect(() => {
     if (!clientId || !tpl?.id) return;
