@@ -314,28 +314,6 @@ export async function upsertClientFieldLayout(
   if (error) throw new Error(error.message);
 }
 
-export type ClientLayoutItem = { id: string; x: number; y: number; w: number; h: number };
-
-export async function fetchClientLayout(clientId: string): Promise<ClientLayoutItem[]> {
-  const { data, error } = await supabase
-    .from('client_layouts')
-    .select('layout')
-    .eq('client_id', clientId)
-    .maybeSingle();
-  if (error) throw new Error(error.message);
-  return (data?.layout as any[]) || [];
-}
-
-export async function saveClientLayout(
-  clientId: string,
-  layout: ClientLayoutItem[],
-): Promise<void> {
-  const { error } = await supabase
-    .from('client_layouts')
-    .upsert({ client_id: clientId, layout }, { onConflict: 'client_id' });
-  if (error) throw new Error(error.message);
-}
-
 export async function deleteClient(clientId: string) {
   const { error: notesError } = await supabase.from('notes').delete().eq('client_id', clientId);
   if (notesError) throw new Error(notesError.message);
