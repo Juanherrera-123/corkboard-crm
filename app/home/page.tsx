@@ -13,8 +13,7 @@ import {
   fetchLatestRecord,
   hideFieldForClient,
   fetchClientFieldOverrides,
-  fetchClientLayout,
-  saveClientLayout,
+  upsertClientFieldLayout,
 } from '@/lib/db';
 import ModalText from '@/components/ModalText';
 import QuestionModal from '@/components/QuestionModal';
@@ -431,19 +430,24 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     if (!clientId || !tpl?.id) return;
     (async () => {
       try {
-        const [overrides, layoutItems] = await Promise.all([
-          fetchClientFieldOverrides(clientId),
-          fetchClientLayout(clientId),
-        ]);
+        const overrides = await fetchClientFieldOverrides(clientId);
         setHiddenFields(overrides.filter((o: any) => o.hidden).map((o: any) => o.field_id));
-        if (layoutItems.length) {
+        if (overrides.length) {
           setTpl((prev) =>
             prev
               ? {
                   ...prev,
                   fields: prev.fields.map((f) => {
-                    const ov = layoutItems.find((o: any) => o.id === f.id);
-                    return ov ? { ...f, x: ov.x, y: ov.y, w: ov.w, h: ov.h } : f;
+                    const ov = overrides.find((o: any) => o.field_id === f.id);
+                    return ov
+                      ? {
+                          ...f,
+                          x: ov.x ?? f.x,
+                          y: ov.y ?? f.y,
+                          w: ov.w ?? f.w,
+                          h: ov.h ?? f.h,
+                        }
+                      : f;
                   }),
                 }
               : prev,
@@ -498,14 +502,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         const recs = computeRecommendations(answers, labelMap);
         const score = recs.reduce((s, r) => s + r.score, 0);
         await saveClientRecord(clientId, tpl.id, answers, score, recs, tpl.fields);
-        const layoutToSave = tpl.fields.map((f) => ({
-          id: f.id,
-          x: f.x,
-          y: f.y,
-          w: f.w ?? DEFAULT_W,
-          h: f.h ?? DEFAULT_H,
-        }));
-        await saveClientLayout(clientId, layoutToSave);
         lastSavedRef.current = current;
         setAutoMsg('Guardado');
       } catch (err: any) {
@@ -542,6 +538,21 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       });
     },
     [compactType],
+  );
+
+  const handleLayoutCommit = useCallback(
+    async (layout: Layout[], _old: Layout, item: Layout) => {
+      if (!clientId) return;
+      const normalized = compactType ? normalizeLayout(layout, gridCols) : layout;
+      const l = normalized.find((it) => it.i === item.i);
+      if (!l) return;
+      try {
+        await upsertClientFieldLayout(clientId, l.i, l.x, l.y, l.w, l.h);
+      } catch (err) {
+        console.error(err);
+      }
+    },
+    [clientId, compactType],
   );
 
   useEffect(() => {
@@ -758,6 +769,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
               isDraggable={editLayout}
               isResizable={editLayout}
               onLayoutChange={handleLayoutChange}
+              onDragStop={handleLayoutCommit}
+              onResizeStop={handleLayoutCommit}
               draggableHandle=".drag-handle"
               compactType={compactType}
               margin={[12, 12]}
