@@ -323,6 +323,34 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [editingField, setEditingField] = useState<Field | null>(null);
   const [recsOpen, setRecsOpen] = useState(true);
 
+  const [layoutSaved, setLayoutSaved] = useState(false);
+  const layoutSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveClientLayoutDebounced = useCallback(
+    (layout: Layout[]) => {
+      if (!clientId) return;
+      if (layoutSaveRef.current) clearTimeout(layoutSaveRef.current);
+      layoutSaveRef.current = setTimeout(async () => {
+        try {
+          await Promise.all(
+            layout.map((l) =>
+              upsertClientFieldLayout(clientId, l.i, l.x, l.y, l.w, l.h),
+            ),
+          );
+          setLayoutSaved(true);
+        } catch (err) {
+          console.error(err);
+        }
+      }, 500);
+    },
+    [clientId],
+  );
+
+  useEffect(() => {
+    if (!layoutSaved) return;
+    const t = setTimeout(() => setLayoutSaved(false), 2000);
+    return () => clearTimeout(t);
+  }, [layoutSaved]);
+
   const unsub = useRef<(() => void) | null>(null);
 
   useEffect(() => {
@@ -486,23 +514,9 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         });
         return { ...prev, fields: newFields };
       });
+      saveClientLayoutDebounced(normalized);
     },
-    [compactType],
-  );
-
-  const handleLayoutCommit = useCallback(
-    async (layout: Layout[], _old: Layout, item: Layout) => {
-      if (!clientId) return;
-      const normalized = compactType ? normalizeLayout(layout, gridCols) : layout;
-      const l = normalized.find((it) => it.i === item.i);
-      if (!l) return;
-      try {
-        await upsertClientFieldLayout(clientId, l.i, l.x, l.y, l.w, l.h);
-      } catch (err) {
-        console.error(err);
-      }
-    },
-    [clientId, compactType],
+    [compactType, saveClientLayoutDebounced],
   );
 
   useEffect(() => {
@@ -719,8 +733,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
               isDraggable={editLayout}
               isResizable={editLayout}
               onLayoutChange={handleLayoutChange}
-              onDragStop={handleLayoutCommit}
-              onResizeStop={handleLayoutCommit}
               draggableHandle=".drag-handle"
               compactType={compactType}
               margin={[12, 12]}
@@ -835,6 +847,11 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           setEditingField(null);
         }}
       />
+      {layoutSaved && (
+        <div className="fixed bottom-4 right-4 px-3 py-2 rounded-lg bg-slate-800 text-white text-sm shadow">
+          Layout guardado
+        </div>
+      )}
     </div>
   );
 }
