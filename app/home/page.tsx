@@ -22,9 +22,11 @@ import { computeRecommendations } from '@/lib/recommendations';
 import { fetchClient } from '@/lib/clients';
 import type { ClientRow } from '@/lib/clients';
 import DropdownMenu from '@/components/DropdownMenu';
-import { DndContext, DragEndEvent } from '@dnd-kit/core';
-import { SortableContext, arrayMove, useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import GridLayout, { WidthProvider, type Layout } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
+
+const ReactGridLayout = WidthProvider(GridLayout);
 
 type FieldType =
   | 'text'
@@ -97,11 +99,6 @@ const FieldCard = memo(function FieldCard({
   onEdit: (field: Field) => void;
 }) {
   const valueStr = value == null ? '' : Array.isArray(value) ? value : String(value);
-
-  const cardStyle: React.CSSProperties = {
-    gridColumn: `${field.x} / span ${field.w}`,
-    gridRow: `${field.y} / span ${field.h}`,
-  };
 
   const renderNumberLike = () => (
     <input
@@ -209,15 +206,12 @@ const FieldCard = memo(function FieldCard({
   }
 
   return (
-    <div
-      style={cardStyle}
-      className="relative rounded-2xl shadow-sm border border-slate-200 bg-white/80 backdrop-blur p-3 flex flex-col gap-2"
-    >
+    <div className="relative h-full rounded-2xl shadow-sm border border-slate-200 bg-white/80 backdrop-blur p-3 flex flex-col gap-2">
       {editLayout && (
         <div className="absolute -left-4 top-2">
           <DropdownMenu
             trigger={
-              <button className="p-1 text-slate-400 hover:text-slate-600 cursor-grab">
+              <button className="drag-handle p-1 text-slate-400 hover:text-slate-600 cursor-grab">
                 <GripIcon className="w-4 h-4" />
               </button>
             }
@@ -249,21 +243,6 @@ const FieldCard = memo(function FieldCard({
   );
 });
 
-const SortableFieldCard = (
-  props: React.ComponentProps<typeof FieldCard>,
-) => {
-  const { field } = props;
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: field.id });
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-  };
-  return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <FieldCard {...props} />
-    </div>
-  );
-};
 
 export default function HomePage({ searchParams }: { searchParams: { client?: string } }) {
   const router = useRouter();
@@ -310,6 +289,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const visibleFields = useMemo(
     () => tpl?.fields.filter((f) => !hiddenFields.includes(f.id)) || [],
     [tpl?.fields, hiddenFields],
+  );
+  const layout = useMemo(
+    () => visibleFields.map((f) => ({ i: f.id, x: f.x, y: f.y, w: f.w, h: f.h })),
+    [visibleFields],
   );
 
   const [tplMenuOpen, setTplMenuOpen] = useState(false);
@@ -445,27 +428,19 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     }
   }, [save]);
 
-  const handleDragEnd = useCallback(
-    (event: DragEndEvent) => {
-      const { active, over } = event;
-      if (active.id !== over?.id) {
-        setTpl((prev) => {
-          if (!prev) return prev;
-          const oldIndex = prev.fields.findIndex((f) => f.id === active.id);
-          const newIndex = prev.fields.findIndex((f) => f.id === over?.id);
-          let nextY = 1;
-          const newFields = arrayMove<Field>(prev.fields, oldIndex, newIndex).map(
-            (f: Field) => {
-              const updated = { ...f, y: nextY };
-              nextY += f.h;
-              return updated;
-            },
-          );
-          return { ...prev, fields: newFields };
+  const handleLayoutChange = useCallback(
+    (layout: Layout[]) => {
+      setTpl((prev) => {
+        if (!prev) return prev;
+        const map = Object.fromEntries(layout.map((l) => [l.i, l]));
+        const newFields = prev.fields.map((f) => {
+          const l = map[f.id];
+          return l ? { ...f, x: l.x, y: l.y, w: l.w, h: l.h } : f;
         });
-        setTplDirty(true);
-        save();
-      }
+        return { ...prev, fields: newFields };
+      });
+      setTplDirty(true);
+      save();
     },
     [save],
   );
@@ -680,23 +655,30 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           className={`${recsOpen ? 'col-span-9' : 'col-span-12'} relative rounded-3xl p-4 border border-slate-200 shadow-sm transition-all duration-300`}
           style={{ ...corkBg }}
         >
-          <DndContext onDragEnd={handleDragEnd}>
-            <SortableContext items={visibleFields.map((f) => f.id)}>
-              <div
-                className={editLayout ? 'space-y-3' : 'grid gap-3'}
-                style={
-                  editLayout
-                    ? undefined
-                    : {
-                        gridTemplateColumns: `repeat(${gridCols}, minmax(0, 1fr))`,
-                        transform: `scale(${zoom})`,
-                        transformOrigin: 'top left',
-                      }
-                }
-              >
-                {visibleFields.map((f) => (
-                  <SortableFieldCard
-                    key={f.id}
+          <div
+            style={
+              editLayout
+                ? undefined
+                : {
+                    transform: `scale(${zoom})`,
+                    transformOrigin: 'top left',
+                  }
+            }
+          >
+            <ReactGridLayout
+              layout={layout}
+              cols={gridCols}
+              rowHeight={80}
+              isDraggable={editLayout}
+              isResizable={editLayout}
+              onLayoutChange={handleLayoutChange}
+              draggableHandle=".drag-handle"
+              compactType={null}
+              margin={[12, 12]}
+            >
+              {visibleFields.map((f) => (
+                <div key={f.id}>
+                  <FieldCard
                     field={f}
                     value={answers[f.id]}
                     onChange={updateAnswer}
@@ -706,10 +688,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                     onHide={() => handleHideField(f.id)}
                     onEdit={setEditingField}
                   />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+                </div>
+              ))}
+            </ReactGridLayout>
+          </div>
           <button
             onClick={() => setRecsOpen((o) => !o)}
             className="absolute top-4 -right-4 w-8 h-8 rounded-full shadow bg-white flex items-center justify-center"
