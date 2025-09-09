@@ -153,11 +153,14 @@ export default function TemplatesPage() {
                 className="px-3 py-1.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50"
                 disabled={!tplDirty}
                 onClick={async () => {
-                  await updateTemplateFields(editingTpl.id, fields);
+                  const sortedFields = fields.slice().sort((a, b) => a.y - b.y);
+                  await updateTemplateFields(editingTpl.id, sortedFields);
                   setTemplates((prev) =>
-                    prev.map((t) => (t.id === editingTpl.id ? { ...t, fields } : t))
+                    prev.map((t) =>
+                      t.id === editingTpl.id ? { ...t, fields: sortedFields } : t
+                    )
                   );
-                  setEditingTpl({ ...editingTpl, fields });
+                  setEditingTpl({ ...editingTpl, fields: sortedFields });
                   setTplDirty(false);
                 }}
               >

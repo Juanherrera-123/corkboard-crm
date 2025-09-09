@@ -34,7 +34,12 @@ export async function fetchTemplates() {
     .eq('org_id', org_id)
     .order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
-  return data;
+  return (data || []).map((tpl: any) => ({
+    ...tpl,
+    fields: (tpl.fields || [])
+      .slice()
+      .sort((a: any, b: any) => a.y - b.y),
+  }));
 }
 
 export async function createTemplate(name: string, fields: any[]) {
