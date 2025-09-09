@@ -279,7 +279,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [templates, setTemplates] = useState<Template[]>([]);
   const [tpl, setTpl] = useState<Template | null>(null);
 
-  const [clientId, setClientId] = useState<string>('');
+  // Initialize clientId from the query string to avoid extra renders
+  const [clientId, setClientId] = useState<string>(searchParams?.client || '');
   const [client, setClient] = useState<ClientRow | null>(null);
 
   const [answers, setAnswers] = useState<Answers>({});
@@ -352,10 +353,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   }, [layoutSaved]);
 
   const unsub = useRef<(() => void) | null>(null);
-
-  useEffect(() => {
-    if (searchParams?.client) setClientId(searchParams.client);
-  }, [searchParams?.client]);
 
   useEffect(() => {
     if (!clientId) {
