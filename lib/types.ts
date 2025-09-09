@@ -7,8 +7,10 @@ export type Field = {
   options?: string[];
   x: number;
   y: number;
-  w: number;
-  h: number;
+  /** Width in grid columns. Defaults to 4. */
+  w?: number;
+  /** Height in grid rows. Defaults to 3. */
+  h?: number;
 };
 
 export type Template = {

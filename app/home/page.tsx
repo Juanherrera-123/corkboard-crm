@@ -44,8 +44,10 @@ type Field = {
   options?: string[];
   x: number;
   y: number;
-  w: number;
-  h: number;
+  /** Width in grid columns. Defaults to DEFAULT_W. */
+  w?: number;
+  /** Height in grid rows. Defaults to DEFAULT_H. */
+  h?: number;
 };
 
 type Template = {
@@ -58,6 +60,13 @@ type Answers = Record<string, any>;
 type Note = { id: string; field_id: string; text: string; created_at?: string; created_by?: string };
 
 const gridCols = 10;
+
+const DEFAULT_W = 4;
+const DEFAULT_H = 3;
+const minW = 2;
+const maxW = gridCols;
+const minH = 2;
+const maxH = 8;
 
 const sortTplFields = (tpl: Template): Template => ({
   ...tpl,
@@ -290,7 +299,18 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     [tpl?.fields, hiddenFields],
   );
   const layout = useMemo(
-    () => visibleFields.map((f) => ({ i: f.id, x: f.x, y: f.y, w: f.w, h: f.h })),
+    () =>
+      visibleFields.map((f) => ({
+        i: f.id,
+        x: f.x,
+        y: f.y,
+        w: f.w ?? DEFAULT_W,
+        h: f.h ?? DEFAULT_H,
+        minW,
+        maxW,
+        minH,
+        maxH,
+      })),
     [visibleFields],
   );
 
@@ -784,19 +804,20 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                 : prev
             );
           } else {
-            const maxY = tpl?.fields.reduce(
-              (m, f) => Math.max(m, f.y + f.h),
-              0
-            ) || 0;
+            const maxY =
+              tpl?.fields.reduce(
+                (m, f) => Math.max(m, f.y + (f.h ?? DEFAULT_H)),
+                0,
+              ) || 0;
             const field: Field = {
               ...data,
               x: 1,
               y: maxY + 1,
-              w: 3,
-              h: 2,
+              w: DEFAULT_W,
+              h: DEFAULT_H,
             };
             setTpl((prev) =>
-              prev ? { ...prev, fields: [...prev.fields, field] } : prev
+              prev ? { ...prev, fields: [...prev.fields, field] } : prev,
             );
           }
           setQuestionModalOpen(false);
