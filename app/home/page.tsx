@@ -74,6 +74,14 @@ const sortTplFields = (tpl: Template): Template => ({
   fields: tpl.fields.slice().sort((a, b) => a.y - b.y),
 });
 
+function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
+  let t: ReturnType<typeof setTimeout> | null;
+  return (...args: Parameters<T>) => {
+    if (t) clearTimeout(t);
+    t = setTimeout(() => fn(...args), delay);
+  };
+}
+
 
 const Badge = ({ children }: { children: React.ReactNode }) => (
   <span className="px-2 py-0.5 rounded-full text-xs bg-slate-800 text-white/90">{children}</span>
@@ -563,6 +571,27 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   useEffect(() => {
     if (!clientId) return;
 
+    const refetchRecord = debounce(async () => {
+      try {
+        const rec = await fetchLatestRecord(clientId);
+        if (rec?.answers) {
+          setAnswers(rec.answers);
+          lastSavedRef.current = JSON.stringify(rec.answers);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }, 500);
+
+    const refetchNotes = debounce(async () => {
+      const list = await fetchNotes(clientId);
+      const byField: Record<string, Note[]> = {};
+      list.forEach((n: any) => {
+        (byField[n.field_id] ||= []).push(n as any);
+      });
+      setNotesState(byField);
+    }, 500);
+
     (async () => {
       const list = await fetchNotes(clientId);
       const byField: Record<string, Note[]> = {};
@@ -572,26 +601,42 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       setNotesState(byField);
     })();
 
+    if (unsub.current) {
+      unsub.current();
+      unsub.current = null;
+    }
+
     const u = subscribeClientLive(
       clientId,
-      async () => {
-        try {
-          const rec = await fetchLatestRecord(clientId);
-          if (rec?.answers) {
-            setAnswers(rec.answers);
-            lastSavedRef.current = JSON.stringify(rec.answers);
-          }
-        } catch (err) {
-          console.error(err);
+      (payload) => {
+        const rec = payload.new;
+        if (rec?.answers) {
+          setAnswers(rec.answers);
+          lastSavedRef.current = JSON.stringify(rec.answers);
+        } else {
+          refetchRecord();
         }
       },
-      async () => {
-        const list = await fetchNotes(clientId);
-        const byField: Record<string, Note[]> = {};
-        list.forEach((n: any) => {
-          (byField[n.field_id] ||= []).push(n as any);
-        });
-        setNotesState(byField);
+      (payload) => {
+        const { eventType, new: newNote, old: oldNote } = payload;
+        const note = (newNote || oldNote) as Note | null;
+        if (note && note.field_id) {
+          setNotesState((prev) => {
+            const copy = { ...prev };
+            const arr = copy[note.field_id] ? [...copy[note.field_id]] : [];
+            const idx = arr.findIndex((n) => n.id === note.id);
+            if (eventType === 'DELETE') {
+              if (idx !== -1) arr.splice(idx, 1);
+            } else {
+              if (idx !== -1) arr[idx] = note;
+              else arr.push(note);
+            }
+            copy[note.field_id] = arr;
+            return copy;
+          });
+        } else {
+          refetchNotes();
+        }
       }
     );
     unsub.current = u;
