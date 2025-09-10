@@ -28,7 +28,7 @@ export default function DashboardPage() {
       try {
         const { org_id } = await getMyProfile();
         await ensureDefaultTemplates(org_id);
-        const rows = await fetchClients();
+        const rows = await fetchClients({ orgId: org_id });
         setClients(rows);
       } catch (e: any) {
         setMsg(e?.message ?? 'No se pudieron cargar las fichas');
