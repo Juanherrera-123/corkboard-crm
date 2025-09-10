@@ -2,6 +2,21 @@ import { supabase } from './supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import { uid } from './uid';
 import { normalizeTemplate } from './types';
+import type { Template } from './types';
+
+/**
+ * Normalizes and validates a template before persisting it.
+ * Unknown field types or invalid coordinates are stripped or
+ * coerced to safe defaults via {@link normalizeTemplate}.
+ */
+export function validateTemplateForSave(t: Template): Template {
+  const normalized = normalizeTemplate(t);
+  // Return a plain (unfrozen) object so it can be sent to Supabase
+  return {
+    ...normalized,
+    fields: normalized.fields.map((f) => ({ ...f })),
+  } as Template;
+}
 
 type Profile = { user: User; org_id: string; role: string };
 
@@ -87,7 +102,13 @@ export async function createTemplate(name: string, fields: any[]) {
     .single();
   if (pErr) throw pErr;
 
-  const payload = { org_id: prof.org_id, name, fields };
+  const validated = validateTemplateForSave({
+    org_id: prof.org_id,
+    name,
+    fields,
+  } as any);
+
+  const payload = { org_id: prof.org_id, name: validated.name, fields: validated.fields };
   console.debug('createTemplate payload', payload);
 
   const { data, error } = await supabase
@@ -166,9 +187,14 @@ export async function ensureDefaultTemplates(orgId: string) {
     { org_id: orgId, name: 'Trader', fields: traderFields, created_by: user.id },
   ];
 
+  const sanitizedRows = rows.map((r) => {
+    const v = validateTemplateForSave(r as any);
+    return { ...r, fields: v.fields };
+  });
+
   const { error: insertErr } = await supabase
     .from('templates')
-    .upsert(rows, { onConflict: 'org_id,name', ignoreDuplicates: true });
+    .upsert(sanitizedRows, { onConflict: 'org_id,name', ignoreDuplicates: true });
   if (insertErr) throw new Error(insertErr.message);
 }
 
@@ -223,9 +249,11 @@ function normalizeAnswersBeforeSave(
 }
 
 export async function upsertTemplateFields(templateId: string, fields: any[]) {
+  const validated = validateTemplateForSave({ id: templateId, fields } as any);
+
   const { data, error } = await supabase
     .from('templates')
-    .update({ fields })
+    .update({ fields: validated.fields })
     .eq('id', templateId)
     .select('id, fields')
     .single();
