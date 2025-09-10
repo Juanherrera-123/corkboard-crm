@@ -98,6 +98,13 @@ const GripIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+const Spinner = () => (
+  <div
+    className="h-8 w-8 animate-spin rounded-full border-4 border-slate-300 border-t-transparent"
+    aria-label="Cargando"
+  />
+);
+
 const FieldCard = memo(function FieldCard({
   field,
   value,
@@ -291,6 +298,9 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [clientId, setClientId] = useState<string>(searchParams?.client || '');
   const [client, setClient] = useState<ClientRow | null>(null);
 
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const [answers, setAnswers] = useState<Answers>({});
   const [notes, setNotesState] = useState<Record<string, Note[]>>({});
   const lastSavedRef = useRef('');
@@ -362,55 +372,87 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const unsub = useRef<(() => void) | null>(null);
 
-  useEffect(() => {
+  const loadAll = useCallback(async () => {
     if (!clientId) {
       setClient(null);
       return;
     }
-    (async () => {
-      try {
-        const c = await fetchClient(clientId);
-        setClient(c);
-      } catch {
-        setClient(null);
+    setLoading(true);
+    setError(null);
+    try {
+      const [c, list, rec, overrides, notesList] = await Promise.all([
+        fetchClient(clientId),
+        fetchTemplates(),
+        fetchLatestRecord(clientId),
+        fetchClientFieldOverrides(clientId),
+        fetchNotes(clientId),
+      ]);
+
+      setClient(c);
+
+      const sorted = (list as any).map((t: any) => sortTplFields(t));
+      setTemplates(sorted as any);
+
+      let chosen: Template | null = sorted.length ? (sorted[0] as any) : null;
+      if (rec?.template_id) {
+        const t = sorted.find((t) => t.id === rec.template_id);
+        if (t) chosen = t as any;
       }
-    })();
+
+      if (rec?.answers) {
+        setAnswers(rec.answers);
+        lastSavedRef.current = JSON.stringify(rec.answers);
+      } else {
+        setAnswers({});
+        lastSavedRef.current = '';
+      }
+
+      if (overrides.length) {
+        setHiddenFields(overrides.filter((o: any) => o.hidden).map((o: any) => o.field_id));
+        if (chosen) {
+          chosen = {
+            ...chosen,
+            fields: chosen.fields.map((f) => {
+              const ov = overrides.find((o: any) => o.field_id === f.id);
+              return ov
+                ? {
+                    ...f,
+                    x: ov.x ?? f.x,
+                    y: ov.y ?? f.y,
+                    w: ov.w ?? f.w,
+                    h: ov.h ?? f.h,
+                  }
+                : f;
+            }),
+          } as any;
+        }
+      } else {
+        setHiddenFields([]);
+      }
+
+      if (chosen) setTpl(sortTplFields(chosen as any));
+
+      const byField: Record<string, Note[]> = {};
+      (notesList as any).forEach((n: any) => {
+        (byField[n.field_id] ||= []).push(n as any);
+      });
+      setNotesState(byField);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Error al cargar los datos');
+    } finally {
+      setLoading(false);
+    }
   }, [clientId]);
 
   useEffect(() => {
-    (async () => {
-      const list = await fetchTemplates();
-      const sorted = (list as any).map((t: any) => sortTplFields(t));
-      setTemplates(sorted as any);
-      if (sorted.length) {
-        setTpl(sorted[0] as any);
-      }
-    })();
-  }, []);
+    if (ready) {
+      loadAll();
+    }
+  }, [ready, loadAll]);
 
   useEffect(() => {
-    if (!clientId) return;
-    (async () => {
-      try {
-        const rec = await fetchLatestRecord(clientId);
-        if (rec?.answers) {
-          setAnswers(rec.answers);
-          lastSavedRef.current = JSON.stringify(rec.answers);
-        }
-        if (rec?.template_id) {
-          const t = templates.find((t) => t.id === rec.template_id);
-          if (t) {
-            setTpl(sortTplFields(t as any));
-          }
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    })();
-  }, [clientId, templates]);
-
-  useEffect(() => {
-    if (!clientId || !tpl?.id) return;
+    if (loading || !clientId || !tpl?.id) return;
     (async () => {
       try {
         const overrides = await fetchClientFieldOverrides(clientId);
@@ -440,7 +482,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         console.error(err);
       }
     })();
-  }, [clientId, tpl?.id]);
+  }, [clientId, tpl?.id, loading]);
 
   const labelMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -592,15 +634,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       setNotesState(byField);
     }, 500);
 
-    (async () => {
-      const list = await fetchNotes(clientId);
-      const byField: Record<string, Note[]> = {};
-      list.forEach((n: any) => {
-        (byField[n.field_id] ||= []).push(n as any);
-      });
-      setNotesState(byField);
-    })();
-
     if (unsub.current) {
       unsub.current();
       unsub.current = null;
@@ -657,6 +690,30 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     return (
       <div className="min-h-screen grid place-items-center bg-slate-50">
         <div className="text-slate-600">Cargando…</div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-slate-50">
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-slate-50">
+        <div className="text-center">
+          <p className="text-slate-600">{error}</p>
+          <button
+            className="mt-4 rounded bg-rose-600 px-3 py-1 text-sm text-white hover:bg-rose-700"
+            onClick={loadAll}
+          >
+            Reintentar
+          </button>
+        </div>
       </div>
     );
   }
