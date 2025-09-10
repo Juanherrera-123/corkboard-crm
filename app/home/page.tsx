@@ -38,6 +38,7 @@ import {
   normalizeLayout,
 } from '@/lib/layout';
 import { mergeAnswers } from '@/lib/answers';
+import { normalizeTemplate } from '@/lib/types';
 
 const ReactGridLayout = WidthProvider(GridLayout);
 
@@ -456,7 +457,9 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
       setClient(c);
 
-      const sorted: Template[] = (list as Template[]).map((t) => sortTplFields(t));
+      const sorted: Template[] = (list as Template[]).map((t) =>
+        sortTplFields(normalizeTemplate(t)),
+      );
       setTemplates(sorted);
 
       let chosen: Template | null = sorted.length ? sorted[0] : null;
@@ -496,7 +499,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         setHiddenFields([]);
       }
 
-      if (chosen) setTpl(sortTplFields(chosen as any));
+      if (chosen) setTpl(sortTplFields(normalizeTemplate(chosen as any)));
 
       const byField: Record<string, Note[]> = {};
       (notesList as any).forEach((n: any) => {
@@ -526,7 +529,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           fetchTemplate(tplId),
           fetchLastClientRecord(clientId, tplId),
         ]);
-        const sorted = sortTplFields(tplData as any);
+        const sorted = sortTplFields(normalizeTemplate(tplData as any));
         setTpl(sorted);
         setTemplates((prev) =>
           prev.map((t) => (t.id === sorted.id ? sorted : t)),

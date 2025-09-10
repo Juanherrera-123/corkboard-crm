@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import { uid } from './uid';
+import { normalizeTemplate } from './types';
 
 type Profile = { user: User; org_id: string; role: string };
 
@@ -48,12 +49,14 @@ export async function fetchTemplates() {
     }
     throw new Error(error.message);
   }
-  return (data || []).map((tpl: any) => ({
-    ...tpl,
-    fields: (tpl.fields || [])
-      .slice()
-      .sort((a: any, b: any) => a.y - b.y),
-  }));
+  return (data || []).map((tpl: any) =>
+    normalizeTemplate({
+      ...tpl,
+      fields: (tpl.fields || [])
+        .slice()
+        .sort((a: any, b: any) => a.y - b.y),
+    }),
+  );
 }
 
 export async function fetchTemplate(tplId: string) {
@@ -63,12 +66,12 @@ export async function fetchTemplate(tplId: string) {
     .eq('id', tplId)
     .single();
   if (error) throw new Error(error.message);
-  return {
+  return normalizeTemplate({
     ...data,
     fields: (data?.fields || [])
       .slice()
       .sort((a: any, b: any) => a.y - b.y),
-  } as any;
+  } as any);
 }
 
 export async function createTemplate(name: string, fields: any[]) {
