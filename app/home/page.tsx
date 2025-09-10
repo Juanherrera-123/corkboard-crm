@@ -118,6 +118,7 @@ const FieldCard = memo(function FieldCard({
   editLayout,
   onHide,
   onEdit,
+  disabled,
 }: {
   field: Field;
   value: any;
@@ -127,6 +128,7 @@ const FieldCard = memo(function FieldCard({
   editLayout: boolean;
   onHide: () => void;
   onEdit: (field: Field) => void;
+  disabled?: boolean;
 }) {
   const valueStr = value == null ? '' : Array.isArray(value) ? value : String(value);
 
@@ -139,6 +141,7 @@ const FieldCard = memo(function FieldCard({
       placeholder={field.type === 'currency' ? '$' : '0'}
       value={valueStr as string}
       onChange={(e) => onChange(field.id, e.target.value)}
+      disabled={disabled}
     />
   );
 
@@ -151,6 +154,7 @@ const FieldCard = memo(function FieldCard({
           placeholder="Escribe..."
           value={valueStr as string}
           onChange={(e) => onChange(field.id, e.target.value)}
+          disabled={disabled}
         />
       );
       break;
@@ -165,6 +169,7 @@ const FieldCard = memo(function FieldCard({
           className="w-full rounded-lg border border-slate-200 bg-white/70 p-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
           value={valueStr as string}
           onChange={(e) => onChange(field.id, e.target.value)}
+          disabled={disabled}
         />
       );
       break;
@@ -174,6 +179,7 @@ const FieldCard = memo(function FieldCard({
           className="w-full rounded-lg border border-slate-200 bg-white/70 p-2"
           value={valueStr as string}
           onChange={(e) => onChange(field.id, e.target.value)}
+          disabled={disabled}
         >
           <option value="">Selecciona...</option>
           {(field.options || []).map((op) => (
@@ -202,6 +208,7 @@ const FieldCard = memo(function FieldCard({
                 className={`px-2 py-1 rounded-full border ${
                   active ? 'bg-sky-600 text-white border-sky-700' : 'bg-white/70 text-slate-800 border-slate-200'
                 }`}
+                disabled={disabled}
               >
                 {op}
               </button>
@@ -217,6 +224,7 @@ const FieldCard = memo(function FieldCard({
             type="button"
             className="text-sm px-2 py-1 rounded-lg bg-amber-400/80 hover:bg-amber-400"
             onClick={() => onAddNote(field.id)}
+            disabled={disabled}
           >
             Agregar nota +
           </button>
@@ -241,7 +249,7 @@ const FieldCard = memo(function FieldCard({
         <div className="absolute -left-4 top-2">
           <DropdownMenu
             trigger={
-              <button className="drag-handle p-1 text-slate-400 hover:text-slate-600 cursor-grab">
+              <button className="drag-handle p-1 text-slate-400 hover:text-slate-600 cursor-grab" disabled={disabled}>
                 <GripIcon className="w-4 h-4" />
               </button>
             }
@@ -249,6 +257,7 @@ const FieldCard = memo(function FieldCard({
             <button
               className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
               onClick={onHide}
+              disabled={disabled}
             >
               Ocultar en esta ficha
             </button>
@@ -263,6 +272,7 @@ const FieldCard = memo(function FieldCard({
             type="button"
             onClick={() => onEdit(field)}
             className="text-xs text-slate-500 hover:text-slate-800"
+            disabled={disabled}
           >
             ✎
           </button>
@@ -304,6 +314,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const [loading, setLoading] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
+  const [tplLoading, setTplLoading] = useState(false);
+  const [tplError, setTplError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const [answers, setAnswers] = useState<Answers>({});
@@ -518,6 +530,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     async (tplId: string) => {
       if (!clientId) return;
       setIsSwitching(true);
+      setTplLoading(true);
+      setTplError(null);
       unsub.current?.();
       unsub.current = null;
       if (layoutSaveRef.current) {
@@ -547,8 +561,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         setTplMenuOpen(false);
         setAutoMsg('Plantilla cargada');
       } catch (err: any) {
-        alert(err.message || 'Error al cargar plantilla');
+        console.error(err);
+        setTplError(err.message || 'Error al cargar plantilla');
       } finally {
+        setTplLoading(false);
         setIsSwitching(false);
       }
     },
@@ -801,6 +817,11 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
             {saving ? 'Guardando…' : 'Guardar ficha'}
           </button>
           {autoMsg && <span className="text-sm text-slate-600">{autoMsg}</span>}
+          {tplError && (
+            <span className="px-3 py-1.5 rounded-xl bg-red-100 text-red-600 text-sm">
+              {tplError}
+            </span>
+          )}
           <button
             className="px-3 py-1.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50"
             onClick={async () => {
@@ -832,7 +853,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
             <button
               className="px-3 py-1.5 rounded-xl border bg-white hover:bg-slate-50"
               onClick={() => setTplMenuOpen((o) => !o)}
-              disabled={isSwitching}
+              disabled={isSwitching || tplLoading}
             >
               Cargar plantilla
             </button>
@@ -843,7 +864,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                     key={t.id}
                     onClick={() => onSelectTemplate(t.id)}
                     className="block w-full text-left px-3 py-2 hover:bg-slate-50 disabled:opacity-60"
-                    disabled={isSwitching}
+                    disabled={isSwitching || tplLoading}
                   >
                     {t.name}
                   </button>
@@ -902,6 +923,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                     editLayout={editLayout}
                     onHide={() => handleHideField(f.id)}
                     onEdit={setEditingField}
+                    disabled={tplLoading}
                   />
                 </div>
               ))}
