@@ -499,7 +499,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     }
   }, [save]);
 
-  const handleLayoutChange = useCallback(
+  const applyLayoutChanges = useCallback(
     (layout: Layout[]) => {
       const normalized = compactType ? normalizeLayout(layout, gridCols) : layout;
       setTpl((prev) => {
@@ -729,7 +729,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
               rowHeight={80}
               isDraggable={editLayout}
               isResizable={editLayout}
-              onLayoutChange={handleLayoutChange}
+              onDragStop={applyLayoutChanges}
+              onResizeStop={applyLayoutChanges}
               draggableHandle=".drag-handle"
               compactType={compactType}
               margin={[12, 12]}
