@@ -1,5 +1,14 @@
+import { uid } from './uid';
+
 export { gridCols, DEFAULT_W, DEFAULT_H, minW, maxW, minH, maxH } from './layout';
-export type FieldType = 'text' | 'number' | 'currency' | 'select' | 'multiselect' | 'note' | 'date';
+export type FieldType =
+  | 'text'
+  | 'number'
+  | 'currency'
+  | 'select'
+  | 'multiselect'
+  | 'note'
+  | 'date';
 
 export type Field = {
   id: string;
@@ -37,3 +46,79 @@ export type ClientFieldOverride = {
   options_override?: string[] | null;
   updated_at?: string | null;
 };
+
+export class TemplateError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'TemplateError';
+  }
+}
+
+const ALLOWED_TYPES: FieldType[] = [
+  'text',
+  'number',
+  'currency',
+  'select',
+  'multiselect',
+  'note',
+  'date',
+];
+
+const DEFAULT_FIELD_POS = { x: 1, y: 1, w: 3, h: 2 } as const;
+
+export function normalizeTemplate(t: unknown): Template {
+  if (!t || typeof t !== 'object' || !('fields' in t) || !Array.isArray((t as any).fields)) {
+    throw new TemplateError('Invalid template data');
+  }
+
+  const tpl: any = t;
+  const dedup = new Set<string>();
+  const fields: Field[] = [];
+
+  for (const raw of tpl.fields as any[]) {
+    if (!raw || typeof raw !== 'object') continue;
+
+    const id: string =
+      typeof raw.id === 'string'
+        ? raw.id
+        : typeof crypto !== 'undefined' && typeof (crypto as any).randomUUID === 'function'
+          ? (crypto as any).randomUUID()
+          : uid();
+    if (dedup.has(id)) continue;
+    dedup.add(id);
+
+    if (typeof raw.label !== 'string') continue;
+    if (!ALLOWED_TYPES.includes(raw.type)) continue;
+
+    const x = typeof raw.x === 'number' && raw.x >= 1 ? raw.x : DEFAULT_FIELD_POS.x;
+    const y = typeof raw.y === 'number' && raw.y >= 1 ? raw.y : DEFAULT_FIELD_POS.y;
+    const w = typeof raw.w === 'number' && raw.w >= 1 ? raw.w : DEFAULT_FIELD_POS.w;
+    const h = typeof raw.h === 'number' && raw.h >= 1 ? raw.h : DEFAULT_FIELD_POS.h;
+
+    const field: Field = {
+      id,
+      label: raw.label,
+      type: raw.type,
+      x,
+      y,
+      w,
+      h,
+    };
+
+    if (raw.type === 'select' || raw.type === 'multiselect') {
+      if (Array.isArray(raw.options)) field.options = raw.options.slice();
+    }
+
+    Object.freeze(field);
+    fields.push(field);
+  }
+
+  Object.freeze(fields);
+
+  const normalized: Template = {
+    ...tpl,
+    fields,
+  };
+
+  return Object.freeze(normalized);
+}
