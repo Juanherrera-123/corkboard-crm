@@ -328,6 +328,13 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     latestAnswers.current = answers;
   }, [answers]);
 
+  const mounted = useRef(true);
+  useEffect(() => {
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   const [noteField, setNoteField] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [editLayout, setEditLayout] = useState(false);
@@ -453,9 +460,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const loadAll = useCallback(async () => {
     if (!clientId) {
-      setClient(null);
+      if (mounted.current) setClient(null);
       return;
     }
+    if (!mounted.current) return;
     setLoading(true);
     setError(null);
     try {
@@ -467,6 +475,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         fetchNotes(clientId),
       ]);
 
+      if (!mounted.current) return;
       setClient(c);
 
       const sorted: Template[] = (list as Template[]).map((t) =>
@@ -520,15 +529,15 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       setNotesState(byField);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || 'Error al cargar los datos');
+      if (mounted.current) setError(err.message || 'Error al cargar los datos');
     } finally {
-      setLoading(false);
+      if (mounted.current) setLoading(false);
     }
   }, [clientId]);
 
   const onSelectTemplate = useCallback(
     async (tplId: string) => {
-      if (!clientId) return;
+      if (!clientId || !mounted.current) return;
       setIsSwitching(true);
       setTplLoading(true);
       setTplError(null);
@@ -543,6 +552,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           fetchTemplate(tplId),
           fetchLastClientRecord(clientId, tplId),
         ]);
+        if (!mounted.current) return;
         const sorted = sortTplFields(normalizeTemplate(tplData as any));
         setTpl(sorted);
         setTemplates((prev) =>
@@ -562,10 +572,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         setAutoMsg('Plantilla cargada');
       } catch (err: any) {
         console.error(err);
-        setTplError(err.message || 'Error al cargar plantilla');
+        if (mounted.current) setTplError(err.message || 'Error al cargar plantilla');
       } finally {
-        setTplLoading(false);
-        setIsSwitching(false);
+        if (mounted.current) setTplLoading(false);
+        if (mounted.current) setIsSwitching(false);
       }
     },
     [clientId, subscribeClient],
