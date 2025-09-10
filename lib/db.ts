@@ -56,6 +56,21 @@ export async function fetchTemplates() {
   }));
 }
 
+export async function fetchTemplate(tplId: string) {
+  const { data, error } = await supabase
+    .from('templates')
+    .select('id,name,fields,created_at')
+    .eq('id', tplId)
+    .single();
+  if (error) throw new Error(error.message);
+  return {
+    ...data,
+    fields: (data?.fields || [])
+      .slice()
+      .sort((a: any, b: any) => a.y - b.y),
+  } as any;
+}
+
 export async function createTemplate(name: string, fields: any[]) {
   const {
     data: { user },
@@ -261,6 +276,18 @@ export async function fetchLatestRecord(clientId: string) {
     .from('client_records')
     .select('answers, template_id, score, matches, created_at')
     .eq('client_id', clientId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return data && data[0] ? data[0] : null;
+}
+
+export async function fetchLastClientRecord(clientId: string, tplId: string) {
+  const { data, error } = await supabase
+    .from('client_records')
+    .select('answers, template_id, score, matches, created_at')
+    .eq('client_id', clientId)
+    .eq('template_id', tplId)
     .order('created_at', { ascending: false })
     .limit(1);
   if (error) throw new Error(error.message);

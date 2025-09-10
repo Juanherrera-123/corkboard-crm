@@ -11,6 +11,8 @@ import {
   deleteClient,
   saveClientRecord,
   fetchLatestRecord,
+  fetchTemplate,
+  fetchLastClientRecord,
   hideFieldForClient,
   fetchClientFieldOverrides,
   upsertClientFieldLayout,
@@ -35,6 +37,7 @@ import {
   maxH,
   normalizeLayout,
 } from '@/lib/layout';
+import { mergeAnswers } from '@/lib/answers';
 
 const ReactGridLayout = WidthProvider(GridLayout);
 
@@ -299,6 +302,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [client, setClient] = useState<ClientRow | null>(null);
 
   const [loading, setLoading] = useState(false);
+  const [isSwitching, setIsSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [answers, setAnswers] = useState<Answers>({});
@@ -372,6 +376,68 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const unsub = useRef<(() => void) | null>(null);
 
+  const subscribeClient = useCallback(() => {
+    if (!clientId) return;
+
+    const refetchRecord = debounce(async () => {
+      try {
+        const rec = await fetchLatestRecord(clientId);
+        if (rec?.answers) {
+          setAnswers(rec.answers);
+          lastSavedRef.current = JSON.stringify(rec.answers);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }, 500);
+
+    const refetchNotes = debounce(async () => {
+      const list = await fetchNotes(clientId);
+      const byField: Record<string, Note[]> = {};
+      list.forEach((n: any) => {
+        (byField[n.field_id] ||= []).push(n as any);
+      });
+      setNotesState(byField);
+    }, 500);
+
+    unsub.current?.();
+
+    const u = subscribeClientLive(
+      clientId,
+      (payload) => {
+        const rec = payload.new;
+        if (rec?.answers) {
+          setAnswers(rec.answers);
+          lastSavedRef.current = JSON.stringify(rec.answers);
+        } else {
+          refetchRecord();
+        }
+      },
+      (payload) => {
+        const { eventType, new: newNote, old: oldNote } = payload;
+        const note = (newNote || oldNote) as Note | null;
+        if (note && note.field_id) {
+          setNotesState((prev) => {
+            const copy = { ...prev };
+            const arr = copy[note.field_id] ? [...copy[note.field_id]] : [];
+            const idx = arr.findIndex((n) => n.id === note.id);
+            if (eventType === 'DELETE') {
+              if (idx !== -1) arr.splice(idx, 1);
+            } else {
+              if (idx !== -1) arr[idx] = note;
+              else arr.push(note);
+            }
+            copy[note.field_id] = arr;
+            return copy;
+          });
+        } else {
+          refetchNotes();
+        }
+      }
+    );
+    unsub.current = u;
+  }, [clientId]);
+
   const loadAll = useCallback(async () => {
     if (!clientId) {
       setClient(null);
@@ -444,6 +510,47 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       setLoading(false);
     }
   }, [clientId]);
+
+  const onSelectTemplate = useCallback(
+    async (tplId: string) => {
+      if (!clientId) return;
+      setIsSwitching(true);
+      unsub.current?.();
+      unsub.current = null;
+      if (layoutSaveRef.current) {
+        clearTimeout(layoutSaveRef.current);
+        layoutSaveRef.current = null;
+      }
+      try {
+        const [tplData, record] = await Promise.all([
+          fetchTemplate(tplId),
+          fetchLastClientRecord(clientId, tplId),
+        ]);
+        const sorted = sortTplFields(tplData as any);
+        setTpl(sorted);
+        setTemplates((prev) =>
+          prev.map((t) => (t.id === sorted.id ? sorted : t)),
+        );
+        const merged = mergeAnswers(
+          record?.answers || {},
+          latestAnswers.current,
+          sorted.fields,
+        );
+        setAnswers(merged);
+        lastSavedRef.current = record?.answers
+          ? JSON.stringify(record.answers)
+          : '';
+        subscribeClient();
+        setTplMenuOpen(false);
+        setAutoMsg('Plantilla cargada');
+      } catch (err: any) {
+        alert(err.message || 'Error al cargar plantilla');
+      } finally {
+        setIsSwitching(false);
+      }
+    },
+    [clientId, subscribeClient],
+  );
 
   useEffect(() => {
     if (ready) {
@@ -609,75 +716,10 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     });
     setNotesState(byField);
   };
-
   useEffect(() => {
-    if (!clientId) return;
-
-    const refetchRecord = debounce(async () => {
-      try {
-        const rec = await fetchLatestRecord(clientId);
-        if (rec?.answers) {
-          setAnswers(rec.answers);
-          lastSavedRef.current = JSON.stringify(rec.answers);
-        }
-      } catch (err) {
-        console.error(err);
-      }
-    }, 500);
-
-    const refetchNotes = debounce(async () => {
-      const list = await fetchNotes(clientId);
-      const byField: Record<string, Note[]> = {};
-      list.forEach((n: any) => {
-        (byField[n.field_id] ||= []).push(n as any);
-      });
-      setNotesState(byField);
-    }, 500);
-
-    if (unsub.current) {
-      unsub.current();
-      unsub.current = null;
-    }
-
-    const u = subscribeClientLive(
-      clientId,
-      (payload) => {
-        const rec = payload.new;
-        if (rec?.answers) {
-          setAnswers(rec.answers);
-          lastSavedRef.current = JSON.stringify(rec.answers);
-        } else {
-          refetchRecord();
-        }
-      },
-      (payload) => {
-        const { eventType, new: newNote, old: oldNote } = payload;
-        const note = (newNote || oldNote) as Note | null;
-        if (note && note.field_id) {
-          setNotesState((prev) => {
-            const copy = { ...prev };
-            const arr = copy[note.field_id] ? [...copy[note.field_id]] : [];
-            const idx = arr.findIndex((n) => n.id === note.id);
-            if (eventType === 'DELETE') {
-              if (idx !== -1) arr.splice(idx, 1);
-            } else {
-              if (idx !== -1) arr[idx] = note;
-              else arr.push(note);
-            }
-            copy[note.field_id] = arr;
-            return copy;
-          });
-        } else {
-          refetchNotes();
-        }
-      }
-    );
-    unsub.current = u;
-    return () => {
-      u();
-      unsub.current = null;
-    };
-  }, [clientId]);
+    subscribeClient();
+    return () => unsub.current?.();
+  }, [clientId, subscribeClient]);
 
   const corkBg: React.CSSProperties = {
     backgroundImage:
@@ -718,7 +760,12 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     );
   }
   return (
-    <div className="min-h-screen w-full bg-slate-100">
+    <div className="min-h-screen w-full bg-slate-100 relative">
+      {isSwitching && (
+        <div className="absolute inset-0 z-30 grid place-items-center bg-white/60">
+          <Spinner />
+        </div>
+      )}
       <div className="sticky top-0 z-20 flex items-center justify-between p-2 bg-white/70 backdrop-blur border-b border-slate-200">
         <div className="px-3 py-1 rounded-lg border border-slate-200 bg-white text-slate-800 font-semibold">
           {client?.name}
@@ -732,19 +779,21 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
             step={0.05}
             value={zoom}
             onChange={(e) => setZoom(Number(e.target.value))}
+            disabled={isSwitching}
           />
           <button
             className={`px-3 py-1.5 rounded-xl border ${
               editLayout ? 'bg-sky-600 text-white hover:bg-sky-700' : 'bg-white hover:bg-slate-50'
             }`}
             onClick={() => setEditLayout((o) => !o)}
+            disabled={isSwitching}
           >
             {editLayout ? 'Listo' : 'Editar layout'}
           </button>
           <button
             className="px-3 py-1.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60"
             onClick={onSaveClick}
-            disabled={!clientId || !tpl?.id || saving}
+            disabled={!clientId || !tpl?.id || saving || isSwitching}
           >
             {saving ? 'Guardando…' : 'Guardar ficha'}
           </button>
@@ -762,6 +811,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                 }
               }
             }}
+            disabled={isSwitching}
           >
             Eliminar cliente
           </button>
@@ -771,6 +821,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
               await save(true);
               router.push('/dashboard');
             }}
+            disabled={isSwitching}
           >
             Salir
           </button>
@@ -778,6 +829,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
             <button
               className="px-3 py-1.5 rounded-xl border bg-white hover:bg-slate-50"
               onClick={() => setTplMenuOpen((o) => !o)}
+              disabled={isSwitching}
             >
               Cargar plantilla
             </button>
@@ -786,11 +838,9 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                 {templates.map((t) => (
                   <button
                     key={t.id}
-                    onClick={() => {
-                      setTpl(sortTplFields(t as any));
-                      setTplMenuOpen(false);
-                    }}
-                    className="block w-full text-left px-3 py-2 hover:bg-slate-50"
+                    onClick={() => onSelectTemplate(t.id)}
+                    className="block w-full text-left px-3 py-2 hover:bg-slate-50 disabled:opacity-60"
+                    disabled={isSwitching}
                   >
                     {t.name}
                   </button>
@@ -804,6 +854,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
               setEditingField(null);
               setQuestionModalOpen(true);
             }}
+            disabled={isSwitching}
           >
             Agregar pregunta
           </button>
