@@ -12,22 +12,22 @@ export default function ModalCreateClient({
 }) {
   const [name, setName] = useState('');
   const [tag, setTag] = useState<'Lead' | 'MQL' | 'SQL' | 'Won' | 'Lost'>('Lead');
-  const [loading, setLoading] = useState(false);
-  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   if (!open) return null;
 
   async function submit() {
-    setMsg(null);
-    setLoading(true);
+    setBusy(true);
+    setErr(null);
     try {
       await onCreate(name.trim() || 'Sin nombre', tag);
       onClose();
       setName('');
     } catch (e: any) {
-      setMsg(e?.message ?? 'No se pudo crear el cliente');
+      setErr(e?.message ?? 'No se pudo crear el cliente');
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
@@ -58,7 +58,7 @@ export default function ModalCreateClient({
               ))}
             </select>
           </div>
-          {msg && <p className="text-sm text-rose-600">{msg}</p>}
+          {err && <p className="text-sm text-rose-600">{err}</p>}
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <button className="px-3 py-2 rounded-lg border hover:bg-slate-50" onClick={onClose}>
@@ -66,10 +66,10 @@ export default function ModalCreateClient({
           </button>
           <button
             onClick={submit}
-            disabled={loading}
+            disabled={busy}
             className="px-3 py-2 rounded-lg bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60"
           >
-            {loading ? 'Creando…' : 'Crear'}
+            {busy ? 'Creando…' : 'Crear'}
           </button>
         </div>
       </div>
