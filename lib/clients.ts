@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { getMyProfile } from './db';
 
 export type ClientRow = { id: string; name: string; tag: string; created_at: string };
 
@@ -19,7 +20,22 @@ export async function fetchClients({
   const { data, error } = await query
     .limit(50)
     .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (
+      error.code === '401' ||
+      error.code === '403' ||
+      (error as any).status === 401 ||
+      (error as any).status === 403
+    ) {
+      const { user, org_id } = await getMyProfile();
+      console.error('RLS denegó lectura en clients', {
+        user_id: user.id,
+        org_id,
+      });
+      throw new Error('No autorizado para leer clients');
+    }
+    throw new Error(error.message);
+  }
   return data ?? [];
 }
 
