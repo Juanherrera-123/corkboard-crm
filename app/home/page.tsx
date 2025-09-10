@@ -538,6 +538,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const onSelectTemplate = useCallback(
     async (tplId: string) => {
       if (!clientId || !mounted.current) return;
+      console.debug('switchTemplate start', { clientId, tplId });
       setIsSwitching(true);
       setTplLoading(true);
       setTplError(null);
@@ -554,6 +555,11 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         ]);
         if (!mounted.current) return;
         const sorted = sortTplFields(normalizeTemplate(tplData as any));
+        console.debug('switchTemplate success', {
+          clientId,
+          tplId,
+          fieldsCount: sorted.fields.length,
+        });
         setTpl(sorted);
         setTemplates((prev) =>
           prev.map((t) => (t.id === sorted.id ? sorted : t)),
@@ -576,6 +582,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       } finally {
         if (mounted.current) setTplLoading(false);
         if (mounted.current) setIsSwitching(false);
+        console.debug('switchTemplate end', { clientId, tplId });
       }
     },
     [clientId, subscribeClient],

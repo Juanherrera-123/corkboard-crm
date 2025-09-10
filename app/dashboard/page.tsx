@@ -58,12 +58,16 @@ export default function DashboardPage() {
   }
 
   async function onCreate(name: string, tag: string) {
+    console.debug('createClient start', { name, tag });
     try {
       const id = await createClient(name, tag);
+      console.debug('createClient success', { id });
       router.replace(`/home?client=${id}`);
     } catch (e: any) {
       console.error('createClient error', e);
       throw e; // allow ModalCreateClient to display it
+    } finally {
+      console.debug('createClient end');
     }
   }
 
