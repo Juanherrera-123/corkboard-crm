@@ -27,13 +27,27 @@ export function clearProfileCache() {
 }
 
 export async function fetchTemplates() {
-  const { org_id } = await getMyProfile();
+  const { user, org_id } = await getMyProfile();
   const { data, error } = await supabase
     .from('templates')
     .select('id,name,fields,created_at')
     .eq('org_id', org_id)
     .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (
+      error.code === '401' ||
+      error.code === '403' ||
+      (error as any).status === 401 ||
+      (error as any).status === 403
+    ) {
+      console.error('RLS denegó lectura en templates', {
+        user_id: user.id,
+        org_id,
+      });
+      throw new Error('No autorizado para leer templates');
+    }
+    throw new Error(error.message);
+  }
   return (data || []).map((tpl: any) => ({
     ...tpl,
     fields: (tpl.fields || [])
@@ -254,11 +268,27 @@ export async function fetchLatestRecord(clientId: string) {
 }
 
 export async function fetchNotes(clientId: string) {
-  const { data, error } = await supabase.from('notes')
+  const { data, error } = await supabase
+    .from('notes')
     .select('id, field_id, text, created_at, created_by')
     .eq('client_id', clientId)
     .order('created_at', { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (
+      error.code === '401' ||
+      error.code === '403' ||
+      (error as any).status === 401 ||
+      (error as any).status === 403
+    ) {
+      const { user, org_id } = await getMyProfile();
+      console.error('RLS denegó lectura en notes', {
+        user_id: user.id,
+        org_id,
+      });
+      throw new Error('No autorizado para leer notes');
+    }
+    throw new Error(error.message);
+  }
   return data;
 }
 
