@@ -295,7 +295,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [tpl, setTpl] = useState<Template | null>(null);
 
   // Initialize clientId from the query string to avoid extra renders
-  const [clientId, setClientId] = useState<string>(searchParams?.client || '');
+  const clientId = searchParams?.client || '';
   const [client, setClient] = useState<ClientRow | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -390,13 +390,13 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
       setClient(c);
 
-      const sorted = (list as any).map((t: any) => sortTplFields(t));
-      setTemplates(sorted as any);
+      const sorted: Template[] = (list as Template[]).map((t) => sortTplFields(t));
+      setTemplates(sorted);
 
-      let chosen: Template | null = sorted.length ? (sorted[0] as any) : null;
+      let chosen: Template | null = sorted.length ? sorted[0] : null;
       if (rec?.template_id) {
-        const t = sorted.find((t) => t.id === rec.template_id);
-        if (t) chosen = t as any;
+        const t = sorted.find((tpl) => tpl.id === rec.template_id);
+        if (t) chosen = t;
       }
 
       if (rec?.answers) {
