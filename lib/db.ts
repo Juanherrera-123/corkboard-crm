@@ -43,6 +43,7 @@ export function clearProfileCache() {
 }
 
 export async function fetchTemplates() {
+  console.debug('fetchTemplates start');
   const { user, org_id } = await getMyProfile();
   const { data, error } = await supabase
     .from('templates')
@@ -64,7 +65,7 @@ export async function fetchTemplates() {
     }
     throw new Error(error.message);
   }
-  return (data || []).map((tpl: any) =>
+  const templates = (data || []).map((tpl: any) =>
     normalizeTemplate({
       ...tpl,
       fields: (tpl.fields || [])
@@ -72,21 +73,30 @@ export async function fetchTemplates() {
         .sort((a: any, b: any) => a.y - b.y),
     }),
   );
+  console.debug('fetchTemplates end', {
+    org_id,
+    templatesCount: templates.length,
+    fieldsTotal: templates.reduce((sum, t) => sum + t.fields.length, 0),
+  });
+  return templates;
 }
 
 export async function fetchTemplate(tplId: string) {
+  console.debug('fetchTemplate start', { tplId });
   const { data, error } = await supabase
     .from('templates')
     .select('id,name,fields,created_at')
     .eq('id', tplId)
     .single();
   if (error) throw new Error(error.message);
-  return normalizeTemplate({
+  const tpl = normalizeTemplate({
     ...data,
     fields: (data?.fields || [])
       .slice()
       .sort((a: any, b: any) => a.y - b.y),
   } as any);
+  console.debug('fetchTemplate end', { tplId, fieldsCount: tpl.fields.length });
+  return tpl;
 }
 
 export async function createTemplate(name: string, fields: any[]) {
@@ -199,6 +209,7 @@ export async function ensureDefaultTemplates(orgId: string) {
 }
 
 export async function createClient(name: string, tag: string) {
+  console.debug('createClient start', { nameLength: name.length, tagLength: tag.length });
   // 1) usuario actual
   const { data: u, error: eu } = await supabase.auth.getUser();
   if (eu) throw new Error(eu.message);
@@ -224,6 +235,11 @@ export async function createClient(name: string, tag: string) {
     .single();
 
   if (error) throw new Error(error.message);
+  console.debug('createClient end', {
+    id: data.id,
+    nameLength: name.length,
+    tagLength: tag.length,
+  });
   return data.id as string;
 }
 
