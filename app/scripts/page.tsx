@@ -4,12 +4,7 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
 import Sidebar from '@/components/Sidebar';
 import { fetchScripts, createScript, updateScript } from '@/lib/db';
-
-interface Script {
-  id: string;
-  name: string;
-  content: string;
-}
+import type { Script } from '@/lib/types';
 
 export default function ScriptsPage() {
   const router = useRouter();
@@ -17,7 +12,7 @@ export default function ScriptsPage() {
   const [scripts, setScripts] = useState<Script[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
-  const [name, setName] = useState('');
+  const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
 
@@ -43,7 +38,7 @@ export default function ScriptsPage() {
 
   function openCreate() {
     setEditingId(null);
-    setName('');
+    setTitle('');
     setContent('');
     setStep(1);
     setModalOpen(true);
@@ -51,7 +46,7 @@ export default function ScriptsPage() {
 
   function openEdit(s: Script) {
     setEditingId(s.id);
-    setName(s.name);
+    setTitle(s.title);
     setContent(s.content);
     setStep(2);
     setModalOpen(true);
@@ -59,14 +54,16 @@ export default function ScriptsPage() {
 
   async function save() {
     if (editingId) {
-      await updateScript(editingId, name.trim() || 'Sin nombre', content);
+      await updateScript(editingId, title.trim() || 'Sin título', content);
       setScripts((prev) =>
         prev.map((s) =>
-          s.id === editingId ? { ...s, name: name.trim() || 'Sin nombre', content } : s,
+          s.id === editingId
+            ? { ...s, title: title.trim() || 'Sin título', content }
+            : s,
         ),
       );
     } else {
-      const inserted = await createScript(name.trim() || 'Sin nombre', content);
+      const inserted = await createScript(title.trim() || 'Sin título', content);
       setScripts((prev) => [inserted, ...prev]);
     }
     setModalOpen(false);
@@ -99,7 +96,7 @@ export default function ScriptsPage() {
           <div className="mt-6 grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {scripts.map((s) => (
               <div key={s.id} className="rounded-2xl border border-slate-200 bg-white p-4">
-                <div className="font-medium text-slate-800 truncate">{s.name}</div>
+                <div className="font-medium text-slate-800 truncate">{s.title}</div>
                 <button
                   className="mt-3 text-sm text-sky-700 hover:underline"
                   onClick={() => openEdit(s)}
@@ -122,8 +119,8 @@ export default function ScriptsPage() {
                 <div className="mt-4">
                   <label className="text-sm text-slate-600">Nombre</label>
                   <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
                   />
                 </div>
@@ -137,10 +134,10 @@ export default function ScriptsPage() {
                   <button
                     className="px-3 py-1.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60"
                     onClick={() => setStep(2)}
-                    disabled={!name.trim()}
-                  >
-                    Continuar
-                  </button>
+                    disabled={!title.trim()}
+                    >
+                      Continuar
+                    </button>
                 </div>
               </>
             ) : (
@@ -152,8 +149,8 @@ export default function ScriptsPage() {
                   <div>
                     <label className="text-sm text-slate-600">Nombre</label>
                     <input
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
                       className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
                     />
                   </div>

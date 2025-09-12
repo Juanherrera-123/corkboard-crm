@@ -40,7 +40,7 @@ import {
   normalizeLayout,
 } from '@/lib/layout';
 import { mergeAnswers } from '@/lib/answers';
-import { normalizeTemplate } from '@/lib/types';
+import { normalizeTemplate, type Script } from '@/lib/types';
 
 const ReactGridLayout = WidthProvider(GridLayout);
 
@@ -71,12 +71,6 @@ type Template = {
   id: string;
   name: string;
   fields: Field[];
-};
-
-type Script = {
-  id: string;
-  name: string;
-  content: string;
 };
 
 type Answers = Record<string, any>;
@@ -1042,7 +1036,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
               key={s.id}
               className="rounded-3xl bg-white shadow-sm border border-slate-200 p-4"
             >
-              <h3 className="font-semibold text-slate-800">{s.name}</h3>
+              <h3 className="font-semibold text-slate-800">{s.title}</h3>
               <div className="mt-2 max-h-64 overflow-y-auto text-sm text-slate-700 whitespace-pre-wrap">
                 {s.content}
               </div>

@@ -111,7 +111,7 @@ export async function fetchScripts(): Promise<Script[]> {
   const { user, org_id } = await getMyProfile();
   const { data, error } = await supabase
     .from('scripts')
-    .select('id,name,content,created_at')
+    .select('id, org_id, title, content, created_by, created_at, updated_at')
     .eq('org_id', org_id)
     .order('created_at', { ascending: false });
   if (error) {
@@ -132,21 +132,21 @@ export async function fetchScripts(): Promise<Script[]> {
   return (data as Script[]) || [];
 }
 
-export async function createScript(name: string, content: string): Promise<Script> {
-  const { org_id } = await getMyProfile();
+export async function createScript(title: string, content: string): Promise<Script> {
+  const { user, org_id } = await getMyProfile();
   const { data, error } = await supabase
     .from('scripts')
-    .insert({ id: uid(), org_id, name, content })
-    .select('id,name,content,created_at')
+    .insert({ id: uid(), org_id, title, content, created_by: user.id })
+    .select('id, org_id, title, content, created_by, created_at, updated_at')
     .single();
   if (error) throw new Error(error.message);
   return data as Script;
 }
 
-export async function updateScript(id: string, name: string, content: string) {
+export async function updateScript(id: string, title: string, content: string) {
   const { error } = await supabase
     .from('scripts')
-    .update({ name, content, updated_at: new Date().toISOString() })
+    .update({ title, content, updated_at: new Date().toISOString() })
     .eq('id', id);
   if (error) throw new Error(error.message);
 }
