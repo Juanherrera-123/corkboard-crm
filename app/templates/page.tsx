@@ -127,13 +127,24 @@ export default function TemplatesPage() {
                         setFieldOptions((f.options || []).join(', '));
                         setFieldModalOpen(true);
                       }}
-                      onDelete={() => {
+                      onDelete={async () => {
                         if (!confirm('¿Eliminar esta pregunta?')) return;
-                        setFields((prev) => {
-                          const filtered = prev.filter((x) => x.id !== f.id);
-                          return filtered.map((fld, idx) => ({ ...fld, order: idx }));
-                        });
-                        setTplDirty(true);
+                        const filtered = fields
+                          .filter((x) => x.id !== f.id)
+                          .map((fld, idx) => ({ ...fld, order: idx }));
+                        setFields(filtered);
+                        try {
+                          await updateTemplateFields(editingTpl.id, filtered);
+                          setTemplates((prev) =>
+                            prev.map((t) =>
+                              t.id === editingTpl.id ? { ...t, fields: filtered } : t
+                            )
+                          );
+                          setEditingTpl({ ...editingTpl, fields: filtered });
+                          setTplDirty(false);
+                        } catch (err: any) {
+                          alert(err.message || 'Error al eliminar la pregunta');
+                        }
                       }}
                     />
                   ))}

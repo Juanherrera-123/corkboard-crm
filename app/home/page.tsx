@@ -24,7 +24,6 @@ import { subscribeClientLive } from '@/lib/realtime';
 import { computeRecommendations } from '@/lib/recommendations';
 import { fetchClient } from '@/lib/clients';
 import type { ClientRow } from '@/lib/clients';
-import DropdownMenu from '@/components/DropdownMenu';
 import GridLayout, { WidthProvider, type Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
@@ -104,6 +103,17 @@ const GripIcon = (props: React.SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+const XIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth={2}
+      d="M6 18L18 6M6 6l12 12"
+    />
+  </svg>
+);
+
 const Spinner = () => (
   <div
     className="h-8 w-8 animate-spin rounded-full border-4 border-slate-300 border-t-transparent"
@@ -118,7 +128,7 @@ const FieldCard = memo(function FieldCard({
   notes,
   onAddNote,
   editLayout,
-  onHide,
+  onDelete,
   onEdit,
   disabled,
 }: {
@@ -128,7 +138,7 @@ const FieldCard = memo(function FieldCard({
   notes: Note[];
   onAddNote: (fieldId: string) => void;
   editLayout: boolean;
-  onHide: () => void;
+  onDelete: () => void;
   onEdit: (field: Field) => void;
   disabled?: boolean;
 }) {
@@ -248,22 +258,20 @@ const FieldCard = memo(function FieldCard({
   return (
     <div className="relative h-full rounded-2xl shadow-sm border border-slate-200 bg-white/80 backdrop-blur p-3 flex flex-col gap-2">
       {editLayout && (
-        <div className="absolute -left-4 top-2">
-          <DropdownMenu
-            trigger={
-              <button className="drag-handle p-1 text-slate-400 hover:text-slate-600 cursor-grab" disabled={disabled}>
-                <GripIcon className="w-4 h-4" />
-              </button>
-            }
+        <div className="absolute -left-4 top-2 flex flex-col gap-1">
+          <button
+            className="p-1 text-rose-600 hover:text-rose-700"
+            onClick={onDelete}
+            disabled={disabled}
           >
-            <button
-              className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
-              onClick={onHide}
-              disabled={disabled}
-            >
-              Ocultar en esta ficha
-            </button>
-          </DropdownMenu>
+            <XIcon className="w-4 h-4" />
+          </button>
+          <button
+            className="drag-handle p-1 text-slate-400 hover:text-slate-600 cursor-grab"
+            disabled={disabled}
+          >
+            <GripIcon className="w-4 h-4" />
+          </button>
         </div>
       )}
       <div className="flex items-center justify-between">
@@ -971,7 +979,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                     notes={notes[f.id] || []}
                     onAddNote={(id) => setNoteField(id)}
                     editLayout={editLayout}
-                    onHide={() => handleHideField(f.id)}
+                    onDelete={() => handleHideField(f.id)}
                     onEdit={setEditingField}
                     disabled={tplLoading}
                   />
