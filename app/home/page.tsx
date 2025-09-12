@@ -259,21 +259,24 @@ const FieldCard = memo(function FieldCard({
   return (
     <div className="relative h-full rounded-2xl shadow-sm border border-slate-200 bg-white/80 backdrop-blur p-3 flex flex-col gap-2">
       {editLayout && (
-        <div className="absolute -left-4 top-2 flex flex-col gap-1">
-          <button
-            className="p-1 text-rose-600 hover:text-rose-700"
-            onClick={onDelete}
-            disabled={disabled}
-          >
-            <XIcon className="w-4 h-4" />
-          </button>
-          <button
-            className="drag-handle p-1 text-slate-400 hover:text-slate-600 cursor-grab"
-            disabled={disabled}
-          >
-            <GripIcon className="w-4 h-4" />
-          </button>
-        </div>
+        <>
+          <div className="absolute -left-4 top-2 flex flex-col gap-1">
+            <button
+              className="p-1 text-rose-600 hover:text-rose-700"
+              onClick={onDelete}
+              disabled={disabled}
+            >
+              <XIcon className="w-4 h-4" />
+            </button>
+            <button
+              className="drag-handle p-1 text-slate-400 hover:text-slate-600 cursor-grab"
+              disabled={disabled}
+            >
+              <GripIcon className="w-4 h-4" />
+            </button>
+          </div>
+          <span className="react-resizable-handle custom-resize-handle" />
+        </>
       )}
       <div className="flex items-center justify-between">
         <div className="font-semibold text-slate-800">{field.label}</div>
