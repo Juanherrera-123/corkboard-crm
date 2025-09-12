@@ -73,7 +73,6 @@ type Template = {
   fields: Field[];
 };
 
-
 type Answers = Record<string, any>;
 type Note = { id: string; field_id: string; text: string; created_at?: string; created_by?: string };
 
