@@ -2,7 +2,7 @@ import { supabase } from './supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import { uid } from './uid';
 import { normalizeTemplate } from './types';
-import type { Template } from './types';
+import type { Template, Field } from './types';
 
 /**
  * Normalizes and validates a template before persisting it.
@@ -302,6 +302,16 @@ export async function upsertTemplateFields(templateId: string, fields: any[]) {
 
 export async function updateTemplateFields(templateId: string, fields: any[]) {
   return upsertTemplateFields(templateId, fields);
+}
+
+export async function saveTemplateLayout(templateId: string, fields: Field[]) {
+  const validated = validateTemplateForSave({ id: templateId, fields } as any);
+  console.debug('saving layout', { templateId, count: validated.fields.length });
+  const { error } = await supabase
+    .from('templates')
+    .update({ fields: validated.fields })
+    .eq('id', templateId);
+  if (error) throw error;
 }
 
 

@@ -9,6 +9,7 @@ import {
   getMyProfile,
   createTemplate,
   updateTemplateFields,
+  saveTemplateLayout,
 } from '@/lib/db';
 import { uid } from '@/lib/uid';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -29,8 +30,51 @@ export default function TemplatesPage() {
   const [fieldType, setFieldType] = useState('text');
   const [fieldOptions, setFieldOptions] = useState('');
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor));
+
+  const toast = {
+    success: (msg: string) => alert(msg),
+    error: (msg: string) => alert(msg),
+  };
+
+  function openConfirm(fieldId: string) {
+    setConfirmId(fieldId);
+  }
+
+  async function deleteField(fieldId: string) {
+    if (!editingTpl) return;
+    setError(null);
+    setDeletingId(fieldId);
+
+    const prev = fields;
+    const next = prev
+      .filter((f) => f.id !== fieldId)
+      .map((f, i) => ({ ...f, order: i }));
+
+    setFields(next);
+
+    try {
+      await saveTemplateLayout(editingTpl.id, next);
+      toast.success('Pregunta eliminada');
+      setTemplates((prevTpls) =>
+        prevTpls.map((t) => (t.id === editingTpl.id ? { ...t, fields: next } : t)),
+      );
+      setEditingTpl({ ...editingTpl, fields: next });
+      setTplDirty(false);
+    } catch (e: any) {
+      console.error('delete field failed', e);
+      setFields(prev);
+      const msg = e?.message ?? 'No se pudo eliminar';
+      setError(msg);
+      toast.error(`Error: ${msg}`);
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -100,6 +144,9 @@ export default function TemplatesPage() {
         {editingTpl && (
           <div className="mt-8">
             <h2 className="text-lg font-medium text-slate-800 mb-4">Editando: {editingTpl.name}</h2>
+            {error && (
+              <div className="mb-4 rounded-lg bg-rose-50 px-3 py-2 text-rose-700">{error}</div>
+            )}
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -127,25 +174,8 @@ export default function TemplatesPage() {
                         setFieldOptions((f.options || []).join(', '));
                         setFieldModalOpen(true);
                       }}
-                      onDelete={async () => {
-                        if (!confirm('¿Eliminar esta pregunta?')) return;
-                        const filtered = fields
-                          .filter((x) => x.id !== f.id)
-                          .map((fld, idx) => ({ ...fld, order: idx }));
-                        setFields(filtered);
-                        try {
-                          await updateTemplateFields(editingTpl.id, filtered);
-                          setTemplates((prev) =>
-                            prev.map((t) =>
-                              t.id === editingTpl.id ? { ...t, fields: filtered } : t
-                            )
-                          );
-                          setEditingTpl({ ...editingTpl, fields: filtered });
-                          setTplDirty(false);
-                        } catch (err: any) {
-                          alert(err.message || 'Error al eliminar la pregunta');
-                        }
-                      }}
+                      onDelete={() => openConfirm(f.id)}
+                      deleting={deletingId === f.id}
                     />
                   ))}
                 </div>
@@ -193,6 +223,32 @@ export default function TemplatesPage() {
           </div>
         )}
       </main>
+      {confirmId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-slate-900/40" onClick={() => setConfirmId(null)} />
+          <div className="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-lg border border-slate-200">
+            <p className="text-slate-800">¿Eliminar esta pregunta?</p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                className="px-3 py-2 rounded-lg border hover:bg-slate-50"
+                onClick={() => setConfirmId(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="px-3 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50"
+                onClick={async () => {
+                  if (confirmId) await deleteField(confirmId);
+                  setConfirmId(null);
+                }}
+                disabled={deletingId === confirmId}
+              >
+                {deletingId === confirmId ? 'Eliminando…' : 'Eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 grid place-items-center">
           <div className="bg-white rounded-2xl p-4 w-full max-w-sm">
@@ -329,10 +385,12 @@ function FieldItem({
   field,
   onEdit,
   onDelete,
+  deleting = false,
 }: {
   field: any;
   onEdit: () => void;
   onDelete: () => void;
+  deleting?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: field.id });
   const style: CSSProperties = {
@@ -355,8 +413,13 @@ function FieldItem({
         <button className="text-sky-700 hover:underline" onClick={onEdit}>
           Editar
         </button>
-        <button className="text-rose-600 hover:underline" onClick={onDelete}>
-          Eliminar
+        <button
+          className="text-rose-600 hover:underline disabled:opacity-50"
+          onClick={onDelete}
+          disabled={deleting}
+          data-testid="delete-field-btn"
+        >
+          {deleting ? 'Eliminando…' : 'Eliminar'}
         </button>
       </div>
     </div>
