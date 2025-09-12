@@ -20,6 +20,7 @@ import {
 } from '@/lib/db';
 import ModalText from '@/components/ModalText';
 import QuestionModal from '@/components/QuestionModal';
+import ModalAlert from '@/components/ModalAlert';
 import { subscribeClientLive } from '@/lib/realtime';
 import { computeRecommendations } from '@/lib/recommendations';
 import { fetchClient } from '@/lib/clients';
@@ -333,6 +334,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const lastSavedRef = useRef('');
   const [saving, setSaving] = useState(false);
   const [autoMsg, setAutoMsg] = useState('');
+  const [alertMsg, setAlertMsg] = useState<string | null>(null);
   const latestAnswers = useRef<Answers>({});
   useEffect(() => {
     latestAnswers.current = answers;
@@ -691,7 +693,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         await hideFieldForClient(clientId, fieldId);
         setHiddenFields((prev) => [...prev, fieldId]);
       } catch (err: any) {
-        alert(err.message || 'Error al ocultar el campo');
+        setAlertMsg(err.message || 'Error al ocultar el campo');
       }
     },
     [clientId]
@@ -727,9 +729,9 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const onSaveClick = useCallback(async () => {
     try {
       await save(true);
-      alert('Guardado');
+      setAlertMsg('Guardado');
     } catch (e: any) {
-      alert(`Error al guardar: ${e.message}`);
+      setAlertMsg(`Error al guardar: ${e.message}`);
     }
   }, [save]);
 
@@ -777,13 +779,13 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const addNoteLocalAndRemote = async (fieldId: string, text: string) => {
     if (!clientId) {
-      alert('Cliente no válido');
+      setAlertMsg('Cliente no válido');
       return;
     }
     try {
       await addNote(clientId, fieldId, text);
     } catch (err: any) {
-      alert(err.message || 'Error al agregar la nota');
+      setAlertMsg(err.message || 'Error al agregar la nota');
       return;
     }
     const list = await fetchNotes(clientId);
@@ -889,7 +891,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                   await deleteClient(clientId);
                   router.push('/dashboard');
                 } catch (err: any) {
-                  alert(err.message || 'Error al eliminar el cliente');
+                  setAlertMsg(err.message || 'Error al eliminar el cliente');
                 }
               }
             }}
@@ -1087,6 +1089,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           Layout guardado
         </div>
       )}
+      <ModalAlert open={!!alertMsg} message={alertMsg || ''} onClose={() => setAlertMsg(null)} />
     </div>
   );
 }
