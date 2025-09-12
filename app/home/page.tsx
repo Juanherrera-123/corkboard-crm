@@ -17,6 +17,7 @@ import {
   fetchClientLayoutOverrides,
   saveClientLayoutOverrides,
   type LayoutOverride,
+  fetchScripts,
 } from '@/lib/db';
 import ModalText from '@/components/ModalText';
 import QuestionModal from '@/components/QuestionModal';
@@ -70,6 +71,12 @@ type Template = {
   id: string;
   name: string;
   fields: Field[];
+};
+
+type Script = {
+  id: string;
+  name: string;
+  content: string;
 };
 
 type Answers = Record<string, any>;
@@ -322,6 +329,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
   const [templates, setTemplates] = useState<Template[]>([]);
   const [tpl, setTpl] = useState<Template | null>(null);
+  const [scripts, setScripts] = useState<Script[]>([]);
 
   // Initialize clientId from the query string to avoid extra renders
   const clientId = searchParams?.client || '';
@@ -486,12 +494,13 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     setLoading(true);
     setError(null);
     try {
-      const [c, list, rec, overrides, notesList] = await Promise.all([
+      const [c, list, rec, overrides, notesList, scriptsList] = await Promise.all([
         fetchClient(clientId),
         fetchTemplates(),
         fetchLatestRecord(clientId),
         fetchClientLayoutOverrides(clientId),
         fetchNotes(clientId),
+        fetchScripts(),
       ]);
 
       if (!mounted.current) return;
@@ -501,6 +510,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         sortTplFields(normalizeTemplate(t)),
       );
       setTemplates(sorted);
+      setScripts(scriptsList as Script[]);
 
       let chosen: Template | null = sorted.length ? sorted[0] : null;
       if (rec?.template_id) {
@@ -1024,6 +1034,22 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           </div>
         )}
       </div>
+
+      {scripts.length > 0 && (
+        <div className="mt-6 space-y-4">
+          {scripts.map((s) => (
+            <div
+              key={s.id}
+              className="rounded-3xl bg-white shadow-sm border border-slate-200 p-4"
+            >
+              <h3 className="font-semibold text-slate-800">{s.name}</h3>
+              <div className="mt-2 max-h-64 overflow-y-auto text-sm text-slate-700 whitespace-pre-wrap">
+                {s.content}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <footer className="py-6 text-center text-xs text-slate-500">Corkboard CRM • Supabase</footer>
 
