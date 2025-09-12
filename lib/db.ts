@@ -390,49 +390,62 @@ export async function addNote(clientId: string, fieldId: string, text: string) {
   return data;
 }
 
-export async function fetchClientFieldOverrides(clientId: string) {
+export type LayoutOverride = {
+  x?: number | null;
+  y?: number | null;
+  w?: number | null;
+  h?: number | null;
+  order?: number | null;
+  hidden?: boolean | null;
+};
+
+export async function fetchClientLayoutOverrides(
+  clientId: string,
+): Promise<Record<string, LayoutOverride>> {
   const { data, error } = await supabase
     .from('client_field_overrides')
     .select('field_id, hidden, x, y, w, h, order')
     .eq('client_id', clientId);
   if (error) throw new Error(error.message);
-  return (data as any[]) || [];
+  const map: Record<string, LayoutOverride> = {};
+  (data || []).forEach((row: any) => {
+    map[row.field_id] = {
+      x: row.x,
+      y: row.y,
+      w: row.w,
+      h: row.h,
+      order: row.order,
+      hidden: row.hidden,
+    };
+  });
+  return map;
+}
+
+export async function saveClientLayoutOverrides(
+  clientId: string,
+  overrides: Record<string, LayoutOverride>,
+) {
+  const rows = Object.entries(overrides).map(([field_id, ov]) => ({
+    client_id: clientId,
+    field_id,
+    x: ov.x ?? null,
+    y: ov.y ?? null,
+    w: ov.w ?? null,
+    h: ov.h ?? null,
+    order: ov.order ?? null,
+    hidden: ov.hidden ?? null,
+  }));
+  if (!rows.length) return;
+  const { error } = await supabase
+    .from('client_field_overrides')
+    .upsert(rows, { onConflict: 'client_id,field_id' });
+  if (error) throw new Error(error.message);
 }
 
 export async function hideFieldForClient(clientId: string, fieldId: string) {
-  const { error } = await supabase
-    .from('client_field_overrides')
-    .upsert(
-      {
-        client_id: clientId,
-        field_id: fieldId,
-        hidden: true,
-        x: null,
-        y: null,
-        w: null,
-        h: null,
-        order: null,
-      },
-      { onConflict: 'client_id,field_id' }
-    );
-  if (error) throw new Error(error.message);
-}
-
-export async function upsertClientFieldLayout(
-  clientId: string,
-  fieldId: string,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-) {
-  const { error } = await supabase
-    .from('client_field_overrides')
-    .upsert(
-      { client_id: clientId, field_id: fieldId, x, y, w, h },
-      { onConflict: 'client_id,field_id' },
-    );
-  if (error) throw new Error(error.message);
+  await saveClientLayoutOverrides(clientId, {
+    [fieldId]: { hidden: true },
+  });
 }
 
 export async function deleteClient(clientId: string) {

@@ -14,8 +14,9 @@ import {
   fetchTemplate,
   fetchLastClientRecord,
   hideFieldForClient,
-  fetchClientFieldOverrides,
-  upsertClientFieldLayout,
+  fetchClientLayoutOverrides,
+  saveClientLayoutOverrides,
+  type LayoutOverride,
 } from '@/lib/db';
 import ModalText from '@/components/ModalText';
 import QuestionModal from '@/components/QuestionModal';
@@ -375,11 +376,14 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       if (layoutSaveRef.current) clearTimeout(layoutSaveRef.current);
       layoutSaveRef.current = setTimeout(async () => {
         try {
-          await Promise.all(
-            layout.map((l) =>
-              upsertClientFieldLayout(clientId, l.i, l.x, l.y, l.w, l.h),
-            ),
-          );
+          const sorted = layout
+            .slice()
+            .sort((a, b) => (a.y - b.y) || (a.x - b.x));
+          const map: Record<string, LayoutOverride> = {};
+          sorted.forEach((l, idx) => {
+            map[l.i] = { x: l.x, y: l.y, w: l.w, h: l.h, order: idx };
+          });
+          await saveClientLayoutOverrides(clientId, map);
           setLayoutSaved(true);
         } catch (err) {
           console.error(err);
@@ -472,7 +476,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         fetchClient(clientId),
         fetchTemplates(),
         fetchLatestRecord(clientId),
-        fetchClientFieldOverrides(clientId),
+        fetchClientLayoutOverrides(clientId),
         fetchNotes(clientId),
       ]);
 
@@ -498,30 +502,41 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         lastSavedRef.current = '';
       }
 
-      if (overrides.length) {
-        setHiddenFields(overrides.filter((o: any) => o.hidden).map((o: any) => o.field_id));
-        if (chosen) {
-          chosen = {
-            ...chosen,
-            fields: chosen.fields.map((f) => {
-              const ov = overrides.find((o: any) => o.field_id === f.id);
-              return ov
-                ? {
-                    ...f,
-                    x: ov.x ?? f.x,
-                    y: ov.y ?? f.y,
-                    w: ov.w ?? f.w,
-                    h: ov.h ?? f.h,
-                  }
-                : f;
-            }),
-          } as any;
-        }
-      } else {
-        setHiddenFields([]);
-      }
+      setHiddenFields(
+        Object.entries(overrides)
+          .filter(([, ov]) => ov.hidden)
+          .map(([fid]) => fid),
+      );
 
-      if (chosen) setTpl(sortTplFields(normalizeTemplate(chosen as any)));
+      if (chosen) {
+        const normalizedChosen = normalizeTemplate(chosen as any);
+        const mergedFields = normalizedChosen.fields
+          .map((f) => {
+            const ov = overrides[f.id];
+            return ov
+              ? {
+                  ...f,
+                  order: ov.order ?? f.order,
+                  x: ov.x ?? f.x,
+                  y: ov.y ?? f.y,
+                  w: ov.w ?? f.w,
+                  h: ov.h ?? f.h,
+                }
+              : f;
+          })
+          .sort((a, b) => {
+            const ao = a.order ?? 0;
+            const bo = b.order ?? 0;
+            if (ao !== bo) return ao - bo;
+            const ay = a.y ?? 0;
+            const by = b.y ?? 0;
+            if (ay !== by) return ay - by;
+            const ax = a.x ?? 0;
+            const bx = b.x ?? 0;
+            return ax - bx;
+          });
+        setTpl({ ...normalizedChosen, fields: mergedFields });
+      }
 
       const byField: Record<string, Note[]> = {};
       (notesList as any).forEach((n: any) => {
@@ -599,26 +614,42 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     if (loading || !clientId || !tpl?.id) return;
     (async () => {
       try {
-        const overrides = await fetchClientFieldOverrides(clientId);
-        setHiddenFields(overrides.filter((o: any) => o.hidden).map((o: any) => o.field_id));
-        if (overrides.length) {
+        const overrides = await fetchClientLayoutOverrides(clientId);
+        setHiddenFields(
+          Object.entries(overrides)
+            .filter(([, ov]) => ov.hidden)
+            .map(([fid]) => fid),
+        );
+        if (Object.keys(overrides).length) {
           setTpl((prev) =>
             prev
               ? {
                   ...prev,
-                  fields: prev.fields.map((f) => {
-                    const ov = overrides.find((o: any) => o.field_id === f.id);
-                    return ov
-                      ? {
-                          ...f,
-                          x: ov.x ?? f.x,
-                          y: ov.y ?? f.y,
-                          w: ov.w ?? f.w,
-                          h: ov.h ?? f.h,
-                          order: ov.order ?? f.order,
-                        }
-                      : f;
-                  }),
+                  fields: prev.fields
+                    .map((f) => {
+                      const ov = overrides[f.id];
+                      return ov
+                        ? {
+                            ...f,
+                            order: ov.order ?? f.order,
+                            x: ov.x ?? f.x,
+                            y: ov.y ?? f.y,
+                            w: ov.w ?? f.w,
+                            h: ov.h ?? f.h,
+                          }
+                        : f;
+                    })
+                    .sort((a, b) => {
+                      const ao = a.order ?? 0;
+                      const bo = b.order ?? 0;
+                      if (ao !== bo) return ao - bo;
+                      const ay = a.y ?? 0;
+                      const by = b.y ?? 0;
+                      if (ay !== by) return ay - by;
+                      const ax = a.x ?? 0;
+                      const bx = b.x ?? 0;
+                      return ax - bx;
+                    }),
                 }
               : prev,
           );
