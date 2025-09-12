@@ -32,6 +32,15 @@ export default function TemplatesPage() {
 
   const sensors = useSensors(useSensor(PointerSensor));
 
+  const handleDeleteField = (id: string) => {
+    if (!confirm('¿Eliminar esta pregunta?')) return;
+    setFields((prev) => {
+      const filtered = prev.filter((x) => x.id !== id);
+      return filtered.map((fld, idx) => ({ ...fld, order: idx }));
+    });
+    setTplDirty(true);
+  };
+
   useEffect(() => {
     let active = true;
     (async () => {
@@ -108,7 +117,8 @@ export default function TemplatesPage() {
                   setFields((items) => {
                     const oldIndex = items.findIndex((i) => i.id === active.id);
                     const newIndex = items.findIndex((i) => i.id === over.id);
-                    return arrayMove(items, oldIndex, newIndex);
+                    const moved = arrayMove(items, oldIndex, newIndex);
+                    return moved.map((fld, idx) => ({ ...fld, order: idx }));
                   });
                   setTplDirty(true);
                 }
@@ -127,14 +137,7 @@ export default function TemplatesPage() {
                         setFieldOptions((f.options || []).join(', '));
                         setFieldModalOpen(true);
                       }}
-                      onDelete={() => {
-                        if (!confirm('¿Eliminar esta pregunta?')) return;
-                        setFields((prev) => {
-                          const filtered = prev.filter((x) => x.id !== f.id);
-                          return filtered.map((fld, idx) => ({ ...fld, order: idx }));
-                        });
-                        setTplDirty(true);
-                      }}
+                      onDelete={() => handleDeleteField(f.id)}
                     />
                   ))}
                 </div>
