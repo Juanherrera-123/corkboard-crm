@@ -34,6 +34,16 @@ export type Template = {
   updated_at?: string | null;
 };
 
+export type Script = {
+  id: string;
+  org_id: string;
+  title: string;
+  content: string;
+  created_by: string;
+  created_at: string;
+  updated_at?: string;
+};
+
 export type ClientFieldOverride = {
   id: string;
   client_id: string;

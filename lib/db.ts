@@ -2,7 +2,7 @@ import { supabase } from './supabaseClient';
 import type { User } from '@supabase/supabase-js';
 import { uid } from './uid';
 import { normalizeTemplate } from './types';
-import type { Template, Field } from './types';
+import type { Template, Field, Script } from './types';
 
 /**
  * Normalizes and validates a template before persisting it.
@@ -105,6 +105,50 @@ export async function fetchTemplate(tplId: string) {
   } as any);
   console.debug('fetchTemplate end', { tplId, fieldsCount: tpl.fields.length });
   return tpl;
+}
+
+export async function fetchScripts(): Promise<Script[]> {
+  const { user, org_id } = await getMyProfile();
+  const { data, error } = await supabase
+    .from('scripts')
+    .select('id, org_id, title, content, created_by, created_at, updated_at')
+    .eq('org_id', org_id)
+    .order('created_at', { ascending: false });
+  if (error) {
+    if (
+      error.code === '401' ||
+      error.code === '403' ||
+      (error as any).status === 401 ||
+      (error as any).status === 403
+    ) {
+      console.error('RLS denegó lectura en scripts', {
+        user_id: user.id,
+        org_id,
+      });
+      throw new Error('No autorizado para leer scripts');
+    }
+    throw new Error(error.message);
+  }
+  return (data as Script[]) || [];
+}
+
+export async function createScript(title: string, content: string): Promise<Script> {
+  const { user, org_id } = await getMyProfile();
+  const { data, error } = await supabase
+    .from('scripts')
+    .insert({ id: uid(), org_id, title, content, created_by: user.id })
+    .select('id, org_id, title, content, created_by, created_at, updated_at')
+    .single();
+  if (error) throw new Error(error.message);
+  return data as Script;
+}
+
+export async function updateScript(id: string, title: string, content: string) {
+  const { error } = await supabase
+    .from('scripts')
+    .update({ title, content, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new Error(error.message);
 }
 
 export async function createTemplate(name: string, fields: any[]) {
