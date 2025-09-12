@@ -269,10 +269,11 @@ const FieldCard = memo(function FieldCard({
               <XIcon className="w-4 h-4" />
             </button>
             <button
-              className="drag-handle p-1 text-slate-400 hover:text-slate-600 cursor-grab"
+              className="drag-handle group p-1 cursor-grab"
               disabled={disabled}
+              aria-label="Mover campo"
             >
-              <GripIcon className="w-4 h-4" />
+              <span className="block w-3 h-3 rounded-full bg-slate-400 group-hover:bg-slate-600" />
             </button>
           </div>
           <span className="react-resizable-handle custom-resize-handle" />
