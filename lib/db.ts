@@ -216,8 +216,12 @@ export async function ensureDefaultTemplates(orgId: string) {
   if (insertErr) throw new Error(insertErr.message);
 }
 
-export async function createClient(name: string, tag: string) {
-  console.debug('createClient start', { nameLength: name.length, tagLength: tag.length });
+export async function createClient(name: string, tag: string, templateId: string) {
+  console.debug('createClient start', {
+    nameLength: name.length,
+    tagLength: tag.length,
+    templateId,
+  });
   // 1) usuario actual
   const { data: u, error: eu } = await supabase.auth.getUser();
   if (eu) throw new Error(eu.message);
@@ -243,10 +247,21 @@ export async function createClient(name: string, tag: string) {
     .single();
 
   if (error) throw new Error(error.message);
+  if (templateId) {
+    const { error: recErr } = await supabase.from('client_records').insert({
+      client_id: data.id,
+      template_id: templateId,
+      answers: {},
+      score: 0,
+      matches: [],
+    });
+    if (recErr) throw new Error(recErr.message);
+  }
   console.debug('createClient end', {
     id: data.id,
     nameLength: name.length,
     tagLength: tag.length,
+    templateId,
   });
   return data.id as string;
 }

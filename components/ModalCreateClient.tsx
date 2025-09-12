@@ -1,5 +1,7 @@
 'use client';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { fetchTemplates } from '@/lib/db';
+import type { Template } from '@/lib/types';
 
 export default function ModalCreateClient({
   open,
@@ -8,12 +10,27 @@ export default function ModalCreateClient({
 }: {
   open: boolean;
   onClose: () => void;
-  onCreate: (name: string, tag: string) => Promise<void> | void;
+  onCreate: (name: string, tag: string, templateId: string) => Promise<void> | void;
 }) {
   const [name, setName] = useState('');
-  const [tag, setTag] = useState<'Lead' | 'MQL' | 'SQL' | 'Won' | 'Lost'>('Lead');
+  const [tag, setTag] = useState<'Trader' | 'IB' | 'Fund Manager' | 'Regional'>('Trader');
+  const [templateId, setTemplateId] = useState('');
+  const [templates, setTemplates] = useState<Template[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    (async () => {
+      try {
+        const list = await fetchTemplates();
+        setTemplates(list);
+        setTemplateId(list[0]?.id ?? '');
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, [open]);
 
   if (!open) return null;
 
@@ -21,7 +38,7 @@ export default function ModalCreateClient({
     setBusy(true);
     setErr(null);
     try {
-      await onCreate(name.trim() || 'Sin nombre', tag);
+      await onCreate(name.trim() || 'Sin nombre', tag, templateId);
       onClose();
       setName('');
     } catch (e: any) {
@@ -47,14 +64,28 @@ export default function ModalCreateClient({
             />
           </div>
           <div>
-            <label className="text-sm text-slate-600">Estado</label>
+            <label className="text-sm text-slate-600">Tipo</label>
             <select
               value={tag}
               onChange={(e) => setTag(e.target.value as any)}
               className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
             >
-              {['Lead', 'MQL', 'SQL', 'Won', 'Lost'].map((t) => (
+              {['Trader', 'IB', 'Fund Manager', 'Regional'].map((t) => (
                 <option key={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-sm text-slate-600">Plantilla</label>
+            <select
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-400"
+            >
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
               ))}
             </select>
           </div>

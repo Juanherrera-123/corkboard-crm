@@ -57,10 +57,10 @@ export default function DashboardPage() {
     await loadClients(orgId);
   }
 
-  async function onCreate(name: string, tag: string) {
-    console.debug('createClient start', { name, tag });
+  async function onCreate(name: string, tag: string, templateId: string) {
+    console.debug('createClient start', { name, tag, templateId });
     try {
-      const id = await createClient(name, tag);
+      const id = await createClient(name, tag, templateId);
       console.debug('createClient success', { id });
       router.replace(`/home?client=${id}`);
     } catch (e: any) {
