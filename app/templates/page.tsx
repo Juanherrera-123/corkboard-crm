@@ -153,14 +153,21 @@ export default function TemplatesPage() {
                 className="px-3 py-1.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-50"
                 disabled={!tplDirty}
                 onClick={async () => {
-                  const sortedFields = fields.slice().sort((a, b) => a.y - b.y);
-                  await updateTemplateFields(editingTpl.id, sortedFields);
+                  const ordered = fields.map((f, idx) => ({
+                    ...f,
+                    x: f.x ?? 1,
+                    y: f.y ?? 1,
+                    w: f.w ?? 3,
+                    h: f.h ?? 2,
+                    order: idx,
+                  }));
+                  await updateTemplateFields(editingTpl.id, ordered);
                   setTemplates((prev) =>
                     prev.map((t) =>
-                      t.id === editingTpl.id ? { ...t, fields: sortedFields } : t
+                      t.id === editingTpl.id ? { ...t, fields: ordered } : t
                     )
                   );
-                  setEditingTpl({ ...editingTpl, fields: sortedFields });
+                  setEditingTpl({ ...editingTpl, fields: ordered });
                   setTplDirty(false);
                 }}
               >
@@ -280,6 +287,11 @@ export default function TemplatesPage() {
                         label: fieldLabel.trim(),
                         type: fieldType,
                         ...(opts ? { options: opts } : {}),
+                        x: 1,
+                        y: prev.length + 1,
+                        w: 3,
+                        h: 2,
+                        order: prev.length,
                       },
                     ]);
                   }
