@@ -70,7 +70,11 @@ export async function fetchTemplates() {
       ...tpl,
       fields: (tpl.fields || [])
         .slice()
-        .sort((a: any, b: any) => a.y - b.y),
+        .sort((a: any, b: any) =>
+          typeof a.order === 'number' && typeof b.order === 'number'
+            ? a.order - b.order
+            : (a.y - b.y),
+        ),
     }),
   );
   console.debug('fetchTemplates end', {
@@ -93,7 +97,11 @@ export async function fetchTemplate(tplId: string) {
     ...data,
     fields: (data?.fields || [])
       .slice()
-      .sort((a: any, b: any) => a.y - b.y),
+      .sort((a: any, b: any) =>
+        typeof a.order === 'number' && typeof b.order === 'number'
+          ? a.order - b.order
+          : (a.y - b.y),
+      ),
   } as any);
   console.debug('fetchTemplate end', { tplId, fieldsCount: tpl.fields.length });
   return tpl;
@@ -385,7 +393,7 @@ export async function addNote(clientId: string, fieldId: string, text: string) {
 export async function fetchClientFieldOverrides(clientId: string) {
   const { data, error } = await supabase
     .from('client_field_overrides')
-    .select('field_id, hidden, x, y, w, h')
+    .select('field_id, hidden, x, y, w, h, order')
     .eq('client_id', clientId);
   if (error) throw new Error(error.message);
   return (data as any[]) || [];
@@ -395,7 +403,16 @@ export async function hideFieldForClient(clientId: string, fieldId: string) {
   const { error } = await supabase
     .from('client_field_overrides')
     .upsert(
-      { client_id: clientId, field_id: fieldId, hidden: true, x: null, y: null, w: null, h: null },
+      {
+        client_id: clientId,
+        field_id: fieldId,
+        hidden: true,
+        x: null,
+        y: null,
+        w: null,
+        h: null,
+        order: null,
+      },
       { onConflict: 'client_id,field_id' }
     );
   if (error) throw new Error(error.message);
