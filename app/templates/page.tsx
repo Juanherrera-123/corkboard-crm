@@ -9,7 +9,6 @@ import {
   getMyProfile,
   createTemplate,
   updateTemplateFields,
-  saveTemplateLayout,
 } from '@/lib/db';
 import { uid } from '@/lib/uid';
 import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
@@ -30,9 +29,9 @@ export default function TemplatesPage() {
   const [fieldType, setFieldType] = useState('text');
   const [fieldOptions, setFieldOptions] = useState('');
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
-  const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [deleteMode, setDeleteMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -41,39 +40,10 @@ export default function TemplatesPage() {
     error: (msg: string) => alert(msg),
   };
 
-  function openConfirm(fieldId: string) {
-    setConfirmId(fieldId);
-  }
-
-  async function deleteField(fieldId: string) {
-    if (!editingTpl) return;
-    setError(null);
-    setDeletingId(fieldId);
-
-    const prev = fields;
-    const next = prev
-      .filter((f) => f.id !== fieldId)
-      .map((f, i) => ({ ...f, order: i }));
-
-    setFields(next);
-
-    try {
-      await saveTemplateLayout(editingTpl.id, next);
-      toast.success('Pregunta eliminada');
-      setTemplates((prevTpls) =>
-        prevTpls.map((t) => (t.id === editingTpl.id ? { ...t, fields: next } : t)),
-      );
-      setEditingTpl({ ...editingTpl, fields: next });
-      setTplDirty(false);
-    } catch (e: any) {
-      console.error('delete field failed', e);
-      setFields(prev);
-      const msg = e?.message ?? 'No se pudo eliminar';
-      setError(msg);
-      toast.error(`Error: ${msg}`);
-    } finally {
-      setDeletingId(null);
-    }
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
   }
 
   useEffect(() => {
@@ -144,9 +114,6 @@ export default function TemplatesPage() {
         {editingTpl && (
           <div className="mt-8">
             <h2 className="text-lg font-medium text-slate-800 mb-4">Editando: {editingTpl.name}</h2>
-            {error && (
-              <div className="mb-4 rounded-lg bg-rose-50 px-3 py-2 text-rose-700">{error}</div>
-            )}
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -167,15 +134,9 @@ export default function TemplatesPage() {
                     <FieldItem
                       key={f.id}
                       field={f}
-                      onEdit={() => {
-                        setEditingFieldId(f.id);
-                        setFieldLabel(f.label);
-                        setFieldType(f.type);
-                        setFieldOptions((f.options || []).join(', '));
-                        setFieldModalOpen(true);
-                      }}
-                      onDelete={() => openConfirm(f.id)}
-                      deleting={deletingId === f.id}
+                      deleteMode={deleteMode}
+                      selected={selectedIds.includes(f.id)}
+                      onToggle={() => toggleSelect(f.id)}
                     />
                   ))}
                 </div>
@@ -219,36 +180,26 @@ export default function TemplatesPage() {
               >
                 Guardar cambios
               </button>
+              <button
+                className="px-3 py-1.5 rounded-xl border bg-white hover:bg-slate-50"
+                onClick={() => {
+                  if (deleteMode) {
+                    if (selectedIds.length > 0) {
+                      setConfirmDelete(true);
+                    } else {
+                      setDeleteMode(false);
+                    }
+                  } else {
+                    setDeleteMode(true);
+                  }
+                }}
+              >
+                {deleteMode ? 'Eliminar seleccionadas' : 'Eliminar'}
+              </button>
             </div>
           </div>
         )}
       </main>
-      {confirmId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-slate-900/40" onClick={() => setConfirmId(null)} />
-          <div className="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-lg border border-slate-200">
-            <p className="text-slate-800">¿Eliminar esta pregunta?</p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                className="px-3 py-2 rounded-lg border hover:bg-slate-50"
-                onClick={() => setConfirmId(null)}
-              >
-                Cancelar
-              </button>
-              <button
-                className="px-3 py-2 rounded-lg bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50"
-                onClick={async () => {
-                  if (confirmId) await deleteField(confirmId);
-                  setConfirmId(null);
-                }}
-                disabled={deletingId === confirmId}
-              >
-                {deletingId === confirmId ? 'Eliminando…' : 'Eliminar'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {showCreate && (
         <div className="fixed inset-0 bg-black/50 grid place-items-center">
           <div className="bg-white rounded-2xl p-4 w-full max-w-sm">
@@ -377,20 +328,50 @@ export default function TemplatesPage() {
           </div>
         </div>
       )}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/50 grid place-items-center">
+          <div className="bg-white rounded-2xl p-4 w-full max-w-sm">
+            <h2 className="text-lg font-medium mb-4">
+              ¿Estas seguro que quieres eliminar las preguntas seleccionadas?
+            </h2>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-3 py-1.5 rounded-xl border bg-white hover:bg-slate-50"
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="px-3 py-1.5 rounded-xl bg-rose-600 text-white hover:bg-rose-700"
+                onClick={() => {
+                  setFields((prev) => prev.filter((f) => !selectedIds.includes(f.id)));
+                  setTplDirty(true);
+                  toast.success('Preguntas eliminadas');
+                  setSelectedIds([]);
+                  setDeleteMode(false);
+                  setConfirmDelete(false);
+                }}
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function FieldItem({
   field,
-  onEdit,
-  onDelete,
-  deleting = false,
+  deleteMode,
+  selected,
+  onToggle,
 }: {
   field: any;
-  onEdit: () => void;
-  onDelete: () => void;
-  deleting?: boolean;
+  deleteMode: boolean;
+  selected: boolean;
+  onToggle: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: field.id });
   const style: CSSProperties = {
@@ -405,22 +386,20 @@ function FieldItem({
       {...listeners}
       className="rounded-2xl border border-slate-200 bg-white p-4 flex justify-between items-start"
     >
-      <div>
-        <div className="font-medium text-slate-800">{field.label}</div>
-        <div className="text-xs text-slate-500">{field.type}</div>
-      </div>
-      <div className="flex gap-2 text-sm">
-        <button className="text-sky-700 hover:underline" onClick={onEdit}>
-          Editar
-        </button>
-        <button
-          className="text-rose-600 hover:underline disabled:opacity-50"
-          onClick={onDelete}
-          disabled={deleting}
-          data-testid="delete-field-btn"
-        >
-          {deleting ? 'Eliminando…' : 'Eliminar'}
-        </button>
+      <div className="flex items-start gap-2">
+        {deleteMode && (
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggle}
+            onPointerDown={(e) => e.stopPropagation()}
+            className="mt-1"
+          />
+        )}
+        <div>
+          <div className="font-medium text-slate-800">{field.label}</div>
+          <div className="text-xs text-slate-500">{field.type}</div>
+        </div>
       </div>
     </div>
   );
