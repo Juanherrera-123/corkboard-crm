@@ -128,7 +128,11 @@ export default function TemplatesPage() {
                         setFieldModalOpen(true);
                       }}
                       onDelete={() => {
-                        setFields((prev) => prev.filter((x) => x.id !== f.id));
+                        if (!confirm('¿Eliminar esta pregunta?')) return;
+                        setFields((prev) => {
+                          const filtered = prev.filter((x) => x.id !== f.id);
+                          return filtered.map((fld, idx) => ({ ...fld, order: idx }));
+                        });
                         setTplDirty(true);
                       }}
                     />
@@ -168,6 +172,7 @@ export default function TemplatesPage() {
                     )
                   );
                   setEditingTpl({ ...editingTpl, fields: ordered });
+                  setFields(ordered);
                   setTplDirty(false);
                 }}
               >
