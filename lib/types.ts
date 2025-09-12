@@ -17,6 +17,8 @@ export type Field = {
   options?: string[];
   x: number;
   y: number;
+  /** Display order starting at 0. */
+  order: number;
   /** Width in grid columns. Defaults to DEFAULT_W. */
   w?: number;
   /** Height in grid rows. Defaults to DEFAULT_H. */
@@ -40,6 +42,7 @@ export type ClientFieldOverride = {
   y?: number | null;
   w?: number | null;
   h?: number | null;
+  order?: number | null;
   hidden?: boolean | null;
   label_override?: string | null;
   type_override?: FieldType | null;
@@ -94,6 +97,7 @@ export function normalizeTemplate(t: unknown): Template {
     const y = typeof raw.y === 'number' && raw.y >= 1 ? raw.y : DEFAULT_FIELD_POS.y;
     const w = typeof raw.w === 'number' && raw.w >= 1 ? raw.w : DEFAULT_FIELD_POS.w;
     const h = typeof raw.h === 'number' && raw.h >= 1 ? raw.h : DEFAULT_FIELD_POS.h;
+    const order = typeof raw.order === 'number' && raw.order >= 0 ? raw.order : fields.length;
 
     const field: Field = {
       id,
@@ -101,6 +105,7 @@ export function normalizeTemplate(t: unknown): Template {
       type: raw.type,
       x,
       y,
+      order,
       w,
       h,
     };
@@ -109,9 +114,14 @@ export function normalizeTemplate(t: unknown): Template {
       if (Array.isArray(raw.options)) field.options = raw.options.slice();
     }
 
-    Object.freeze(field);
     fields.push(field);
   }
+
+  fields.sort((a, b) => a.order - b.order);
+  fields.forEach((f, idx) => {
+    f.order = idx;
+    Object.freeze(f);
+  });
 
   Object.freeze(fields);
 

@@ -58,6 +58,7 @@ type Field = {
   options?: string[];
   x: number;
   y: number;
+  order: number;
   /** Width in grid columns. Defaults to DEFAULT_W. */
   w?: number;
   /** Height in grid rows. Defaults to DEFAULT_H. */
@@ -75,7 +76,7 @@ type Note = { id: string; field_id: string; text: string; created_at?: string; c
 
 const sortTplFields = (tpl: Template): Template => ({
   ...tpl,
-  fields: tpl.fields.slice().sort((a, b) => a.y - b.y),
+  fields: tpl.fields.slice().sort((a, b) => a.order - b.order),
 });
 
 function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
@@ -614,6 +615,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                           y: ov.y ?? f.y,
                           w: ov.w ?? f.w,
                           h: ov.h ?? f.h,
+                          order: ov.order ?? f.order,
                         }
                       : f;
                   }),
@@ -1031,6 +1033,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
               y: maxY + 1,
               w: DEFAULT_W,
               h: DEFAULT_H,
+              order: tpl?.fields.length ?? 0,
             };
             setTpl((prev) =>
               prev ? { ...prev, fields: [...prev.fields, field] } : prev,
