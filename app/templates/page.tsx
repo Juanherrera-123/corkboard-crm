@@ -31,6 +31,7 @@ export default function TemplatesPage() {
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const [deleteMode, setDeleteMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor));
 
@@ -184,20 +185,16 @@ export default function TemplatesPage() {
                 onClick={() => {
                   if (deleteMode) {
                     if (selectedIds.length > 0) {
-                      setFields((prev) =>
-                        prev.filter((f) => !selectedIds.includes(f.id)),
-                      );
-                      setTplDirty(true);
-                      toast.success('Preguntas eliminadas');
+                      setConfirmDelete(true);
+                    } else {
+                      setDeleteMode(false);
                     }
-                    setSelectedIds([]);
-                    setDeleteMode(false);
                   } else {
                     setDeleteMode(true);
                   }
                 }}
               >
-                {deleteMode ? 'Eliminar seleccionados' : 'Eliminar'}
+                {deleteMode ? 'Eliminar seleccionadas' : 'Eliminar'}
               </button>
             </div>
           </div>
@@ -331,6 +328,36 @@ export default function TemplatesPage() {
           </div>
         </div>
       )}
+      {confirmDelete && (
+        <div className="fixed inset-0 bg-black/50 grid place-items-center">
+          <div className="bg-white rounded-2xl p-4 w-full max-w-sm">
+            <h2 className="text-lg font-medium mb-4">
+              ¿Estas seguro que quieres eliminar las preguntas seleccionadas?
+            </h2>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-3 py-1.5 rounded-xl border bg-white hover:bg-slate-50"
+                onClick={() => setConfirmDelete(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="px-3 py-1.5 rounded-xl bg-rose-600 text-white hover:bg-rose-700"
+                onClick={() => {
+                  setFields((prev) => prev.filter((f) => !selectedIds.includes(f.id)));
+                  setTplDirty(true);
+                  toast.success('Preguntas eliminadas');
+                  setSelectedIds([]);
+                  setDeleteMode(false);
+                  setConfirmDelete(false);
+                }}
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -365,6 +392,7 @@ function FieldItem({
             type="checkbox"
             checked={selected}
             onChange={onToggle}
+            onPointerDown={(e) => e.stopPropagation()}
             className="mt-1"
           />
         )}
