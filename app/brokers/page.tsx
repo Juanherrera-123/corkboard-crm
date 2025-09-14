@@ -1,42 +1,21 @@
-'use client';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabaseClient';
 import Sidebar from '@/components/Sidebar';
+import BrokerCompare from '@/components/BrokerCompare';
+import { BROKERS } from '@/lib/brokers/data';
 
-export default function BrokersPage() {
-  const router = useRouter();
-  const [ready, setReady] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    supabase.auth.getUser().then(({ data }: any) => {
-      if (!active) return;
-      if (!data.user) {
-        router.replace('/login');
-      } else {
-        setReady(true);
-      }
-    });
-    return () => {
-      active = false;
-    };
-  }, [router]);
-
-  if (!ready) {
-    return (
-      <div className="min-h-screen grid place-items-center bg-slate-50">
-        <div className="text-slate-600">Cargando…</div>
-      </div>
-    );
-  }
+export default function BrokersPage({ searchParams }: { searchParams: { vs?: string } }) {
+  const valid = BROKERS.map((b) => b.id);
+  let ids = (searchParams.vs ? searchParams.vs.split(',') : ['pepperstone']).filter(
+    (id) => id !== 'acy' && valid.includes(id)
+  );
+  if (ids.length === 0) ids = ['pepperstone'];
+  ids = ids.slice(0, 3);
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
       <Sidebar />
       <main className="flex-1 p-6">
-        <h1 className="text-xl font-semibold text-slate-800">Comparador de Brokers</h1>
-        <p className="mt-4 text-slate-600">Próximamente…</p>
+        <h1 className="text-xl font-semibold text-slate-800 mb-4">Comparador de Brokers</h1>
+        <BrokerCompare initialVs={ids} />
       </main>
     </div>
   );
