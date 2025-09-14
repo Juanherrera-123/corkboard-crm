@@ -17,7 +17,8 @@ import {
   fetchClientLayoutOverrides,
   saveClientLayoutOverrides,
   type LayoutOverride,
-  fetchScripts,
+  getMyProfile,
+  fetchScriptsForOrg,
 } from '@/lib/db';
 import ModalText from '@/components/ModalText';
 import QuestionModal from '@/components/QuestionModal';
@@ -324,6 +325,9 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [templates, setTemplates] = useState<Template[]>([]);
   const [tpl, setTpl] = useState<Template | null>(null);
   const [scripts, setScripts] = useState<Script[]>([]);
+  const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null);
+  const [scriptsLoading, setScriptsLoading] = useState(false);
+  const [scriptsError, setScriptsError] = useState<string | null>(null);
 
   // Initialize clientId from the query string to avoid extra renders
   const clientId = searchParams?.client || '';
@@ -488,13 +492,12 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
     setLoading(true);
     setError(null);
     try {
-      const [c, list, rec, overrides, notesList, scriptsList] = await Promise.all([
+      const [c, list, rec, overrides, notesList] = await Promise.all([
         fetchClient(clientId),
         fetchTemplates(),
         fetchLatestRecord(clientId),
         fetchClientLayoutOverrides(clientId),
         fetchNotes(clientId),
-        fetchScripts(),
       ]);
 
       if (!mounted.current) return;
@@ -504,7 +507,6 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         sortTplFields(normalizeTemplate(t)),
       );
       setTemplates(sorted);
-      setScripts(scriptsList as Script[]);
 
       let chosen: Template | null = sorted.length ? sorted[0] : null;
       if (rec?.template_id) {
@@ -568,6 +570,52 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
       if (mounted.current) setLoading(false);
     }
   }, [clientId]);
+
+  const loadScripts = useCallback(async () => {
+    setScriptsLoading(true);
+    setScriptsError(null);
+    try {
+      const { org_id } = await getMyProfile();
+      const list = await fetchScriptsForOrg(org_id);
+      setScripts(list);
+    } catch (err) {
+      console.error(err);
+      setScriptsError('No se pudieron cargar los guiones.');
+    } finally {
+      setScriptsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadScripts();
+  }, [loadScripts]);
+
+  useEffect(() => {
+    if (!clientId) {
+      setSelectedScriptId(null);
+      return;
+    }
+    const stored = localStorage.getItem(`scriptSel:${clientId}`);
+    if (stored && scripts.some((s) => s.id === stored)) {
+      setSelectedScriptId(stored);
+    } else {
+      setSelectedScriptId(null);
+    }
+  }, [clientId, scripts]);
+
+  const selectedScript = useMemo(
+    () => scripts.find((s) => s.id === selectedScriptId) || null,
+    [scripts, selectedScriptId],
+  );
+
+  const handleScriptChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setSelectedScriptId(val || null);
+    if (clientId) {
+      if (val) localStorage.setItem(`scriptSel:${clientId}`, val);
+      else localStorage.removeItem(`scriptSel:${clientId}`);
+    }
+  };
 
   const onSelectTemplate = useCallback(
     async (tplId: string) => {
@@ -1006,7 +1054,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         </div>
 
         {recsOpen && (
-          <div className="col-span-3 transition-all duration-300">
+          <div className="col-span-3 transition-all duration-300 space-y-4">
             <div className="rounded-3xl bg-white shadow-sm border border-slate-200 p-4">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold text-slate-800">Recomendaciones</h3>
@@ -1025,25 +1073,60 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                 ))}
               </div>
             </div>
+
+            <div className="rounded-3xl bg-white shadow-sm border border-slate-200 p-4">
+              <h3 className="font-semibold text-slate-800">Guiones</h3>
+              {scriptsLoading ? (
+                <div className="mt-2 text-sm text-slate-600">Cargando guiones…</div>
+              ) : scriptsError ? (
+                <div className="mt-2 text-sm text-red-600">
+                  No se pudieron cargar los guiones.
+                  <button
+                    className="ml-2 underline"
+                    onClick={loadScripts}
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              ) : scripts.length === 0 ? (
+                <div className="mt-2 text-sm text-slate-600">
+                  Aún no hay guiones
+                  <div className="mt-2">
+                    <button
+                      className="px-3 py-1.5 rounded-xl border bg-white hover:bg-slate-50 text-sm"
+                      onClick={() => router.push('/scripts')}
+                    >
+                      Crear guion
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <select
+                    className="mt-3 w-full rounded-lg border border-slate-200 bg-white p-2"
+                    value={selectedScriptId ?? ''}
+                    onChange={handleScriptChange}
+                  >
+                    <option value="">Selecciona un guion…</option>
+                    {scripts.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.title}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="mt-3 max-h-[480px] overflow-auto text-sm text-slate-700 whitespace-pre-wrap">
+                    {selectedScript ? (
+                      selectedScript.content
+                    ) : (
+                      <span className="text-slate-500">Selecciona un guion para verlo aquí</span>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         )}
       </div>
-
-      {scripts.length > 0 && (
-        <div className="mt-6 space-y-4">
-          {scripts.map((s) => (
-            <div
-              key={s.id}
-              className="rounded-3xl bg-white shadow-sm border border-slate-200 p-4"
-            >
-              <h3 className="font-semibold text-slate-800">{s.title}</h3>
-              <div className="mt-2 max-h-64 overflow-y-auto text-sm text-slate-700 whitespace-pre-wrap">
-                {s.content}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       <footer className="py-6 text-center text-xs text-slate-500">Corkboard CRM • Supabase</footer>
 
