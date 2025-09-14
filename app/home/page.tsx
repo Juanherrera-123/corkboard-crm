@@ -30,6 +30,7 @@ import type { ClientRow } from '@/lib/clients';
 import GridLayout, { WidthProvider, type Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
+import type { ResizeHandleAxis } from 'react-resizable';
 import {
   gridCols,
   DEFAULT_W,
@@ -93,17 +94,6 @@ function debounce<T extends (...args: any[]) => void>(fn: T, delay: number) {
 
 const Badge = ({ children }: { children: React.ReactNode }) => (
   <span className="px-2 py-0.5 rounded-full text-xs bg-slate-800 text-white/90">{children}</span>
-);
-
-const GripIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth={2}
-      d="M8 6h.01M8 12h.01M8 18h.01M16 6h.01M16 12h.01M16 18h.01"
-    />
-  </svg>
 );
 
 const XIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -278,7 +268,6 @@ const FieldCard = memo(function FieldCard({
               <span className="block w-3 h-3 rounded-full bg-slate-400 group-hover:bg-slate-600" />
             </button>
           </div>
-          <span className="react-resizable-handle custom-resize-handle" />
         </>
       )}
       <div className="flex items-center justify-between">
@@ -1042,6 +1031,13 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
               draggableHandle=".drag-handle"
               compactType={compactType}
               margin={[12, 12]}
+              resizeHandle={
+                editLayout
+                  ? (_axis: ResizeHandleAxis, ref: React.Ref<HTMLSpanElement>) => (
+                      <span ref={ref} className="react-resizable-handle custom-resize-handle" />
+                    )
+                  : undefined
+              }
             >
               {visibleFields.map((f) => (
                 <div key={f.id}>
