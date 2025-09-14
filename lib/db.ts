@@ -521,6 +521,29 @@ export async function saveClientLayoutOverrides(
   if (error) throw new Error(error.message);
 }
 
+export async function getClientConfidence(clientId: string) {
+  const { data, error } = await supabase
+    .from('clients')
+    .select('confidence_score, confidence_note')
+    .eq('id', clientId)
+    .single();
+  if (error) throw new Error(error.message);
+  return data as { confidence_score: number | null; confidence_note: string | null };
+}
+
+export async function updateClientConfidence(clientId: string, score: number, note?: string) {
+  const payload: any = { confidence_score: score, confidence_updated_at: new Date().toISOString() };
+  if (note !== undefined) payload.confidence_note = note;
+  const { data, error } = await supabase
+    .from('clients')
+    .update(payload)
+    .eq('id', clientId)
+    .select('confidence_score, confidence_note')
+    .single();
+  if (error) throw new Error(error.message);
+  return data as { confidence_score: number | null; confidence_note: string | null };
+}
+
 export async function hideFieldForClient(clientId: string, fieldId: string) {
   await saveClientLayoutOverrides(clientId, {
     [fieldId]: { hidden: true },
