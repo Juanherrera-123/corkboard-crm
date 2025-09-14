@@ -48,3 +48,14 @@ export async function fetchClient(id: string): Promise<ClientRow | null> {
   if (error) throw new Error(error.message);
   return data ?? null;
 }
+
+export async function updateClientName(id: string, name: string): Promise<ClientRow> {
+  const { data, error } = await supabase
+    .from('clients')
+    .update({ name })
+    .eq('id', id)
+    .select('id,name,tag,created_at')
+    .single();
+  if (error) throw new Error(error.message);
+  return data as ClientRow;
+}

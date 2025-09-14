@@ -25,7 +25,7 @@ import QuestionModal from '@/components/QuestionModal';
 import ModalAlert from '@/components/ModalAlert';
 import { subscribeClientLive } from '@/lib/realtime';
 import { computeRecommendations } from '@/lib/recommendations';
-import { fetchClient } from '@/lib/clients';
+import { fetchClient, updateClientName } from '@/lib/clients';
 import type { ClientRow } from '@/lib/clients';
 import GridLayout, { WidthProvider, type Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
@@ -358,6 +358,18 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   }, []);
 
   const [noteField, setNoteField] = useState<string | null>(null);
+  const handleRename = useCallback(async () => {
+    if (!client) return;
+    // eslint-disable-next-line no-alert
+    const newName = prompt('Nuevo nombre del cliente', client.name);
+    if (!newName || newName.trim() === '' || newName === client.name) return;
+    try {
+      const updated = await updateClientName(client.id, newName.trim());
+      setClient(updated);
+    } catch (e: any) {
+      setAlertMsg(e.message || 'No se pudo renombrar el cliente');
+    }
+  }, [client]);
   const [zoom, setZoom] = useState(1);
   const [editLayout, setEditLayout] = useState(false);
   const [hiddenFields, setHiddenFields] = useState<string[]>([]);
@@ -902,9 +914,12 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
         </div>
       )}
       <div className="sticky top-0 z-20 flex items-center justify-between p-2 bg-white/70 backdrop-blur border-b border-slate-200">
-        <div className="px-3 py-1 rounded-lg border border-slate-200 bg-white text-slate-800 font-semibold">
+        <button
+          onClick={handleRename}
+          className="px-3 py-1 rounded-lg border border-slate-200 bg-white text-slate-800 font-semibold"
+        >
           {client?.name}
-        </div>
+        </button>
         <div className="flex items-center gap-2">
           <label className="text-sm text-slate-600">Zoom</label>
           <input
