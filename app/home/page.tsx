@@ -278,7 +278,6 @@ const FieldCard = memo(function FieldCard({
               <span className="block w-3 h-3 rounded-full bg-slate-400 group-hover:bg-slate-600" />
             </button>
           </div>
-          <span className="react-resizable-handle custom-resize-handle" />
         </>
       )}
       <div className="flex items-center justify-between">
@@ -1027,6 +1026,13 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
               draggableHandle=".drag-handle"
               compactType={compactType}
               margin={[12, 12]}
+              resizeHandle={
+                editLayout
+                  ? (_axis, ref) => (
+                      <span ref={ref} className="react-resizable-handle custom-resize-handle" />
+                    )
+                  : undefined
+              }
             >
               {visibleFields.map((f) => (
                 <div key={f.id}>
