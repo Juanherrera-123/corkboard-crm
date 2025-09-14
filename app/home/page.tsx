@@ -23,6 +23,8 @@ import {
 import ModalText from '@/components/ModalText';
 import QuestionModal from '@/components/QuestionModal';
 import ModalAlert from '@/components/ModalAlert';
+import ConfidenceBadge from '@/components/ConfidenceBadge';
+import ConfidenceCard from '@/components/ConfidenceCard';
 import { subscribeClientLive } from '@/lib/realtime';
 import { computeRecommendations } from '@/lib/recommendations';
 import { fetchClient, updateClientName } from '@/lib/clients';
@@ -388,6 +390,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const [questionModalOpen, setQuestionModalOpen] = useState(false);
   const [editingField, setEditingField] = useState<Field | null>(null);
   const [recsOpen, setRecsOpen] = useState(true);
+  const [confidenceScore, setConfidenceScore] = useState(50);
+  const [confidenceNote, setConfidenceNote] = useState('');
 
   const [layoutSaved, setLayoutSaved] = useState(false);
   const layoutSaveRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -487,6 +491,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
   const loadAll = useCallback(async () => {
     if (!clientId) {
       if (mounted.current) setClient(null);
+      setConfidenceScore(50);
+      setConfidenceNote('');
       return;
     }
     if (!mounted.current) return;
@@ -503,6 +509,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
 
       if (!mounted.current) return;
       setClient(c);
+      setConfidenceScore(c?.confidence_score ?? 50);
+      setConfidenceNote(c?.confidence_note ?? '');
 
       const sorted: Template[] = (list as Template[]).map((t) =>
         sortTplFields(normalizeTemplate(t)),
@@ -929,6 +937,7 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
           >
             {editLayout ? 'Listo' : 'Editar layout'}
           </button>
+          <ConfidenceBadge score={confidenceScore} />
           <button
             className="px-3 py-1.5 rounded-xl bg-sky-600 text-white hover:bg-sky-700 disabled:opacity-60"
             onClick={onSaveClick}
@@ -1084,6 +1093,8 @@ export default function HomePage({ searchParams }: { searchParams: { client?: st
                 ))}
               </div>
             </div>
+
+            <ConfidenceCard clientId={clientId} score={confidenceScore} note={confidenceNote} onScoreChange={setConfidenceScore} onNoteChange={setConfidenceNote} />
 
             <div className="rounded-3xl bg-white shadow-sm border border-slate-200 p-4">
               <h3 className="font-semibold text-slate-800">Guiones</h3>
