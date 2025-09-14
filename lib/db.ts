@@ -132,6 +132,16 @@ export async function fetchScripts(): Promise<Script[]> {
   return (data as Script[]) || [];
 }
 
+export async function fetchScriptsForOrg(orgId: string): Promise<Script[]> {
+  const { data, error } = await supabase
+    .from('scripts')
+    .select('id, org_id, title, content, created_by, created_at, updated_at')
+    .eq('org_id', orgId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data as Script[]) || [];
+}
+
 export async function createScript(title: string, content: string): Promise<Script> {
   const { user, org_id } = await getMyProfile();
   const { data, error } = await supabase
